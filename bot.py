@@ -1,7 +1,6 @@
 import os
 import asyncio
 import logging
-
 from aiohttp import web
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -10,7 +9,7 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
 
-# Load environment
+# Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
@@ -18,7 +17,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
-# Basic file logging
+# Logging config
 logging.basicConfig(
     filename='scamsclub_bot.log',
     filemode='a',
@@ -26,7 +25,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# In-memory tracking
+# Memory
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
 
@@ -38,7 +37,8 @@ rank_access_topics = {
     "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
 }
 
-# Welcome message (MessageHandler)
+# --- Handlers ---
+
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = InlineKeyboardMarkup([
@@ -53,7 +53,6 @@ async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_
             parse_mode="HTML"
         )
 
-# ChatMemberHandler fallback
 async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
@@ -71,7 +70,6 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode="HTML"
         )
 
-# Button handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -152,25 +150,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-# /logs (admin only, last 20 lines)
-async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    try:
-        with open('scamsclub_bot.log', 'r') as f:
-            lines = f.readlines()[-20:]
-            await update.message.reply_text("📝 Last 20 Log Entries:\n\n" + ''.join(lines[-20:]))
-    except FileNotFoundError:
-        await update.message.reply_text("⚠️ No log file found.")
-
-# /myrank
-async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    rank = user_ranks.get(uid, "❌ Unranked")
-    await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
-
-# Auto-delete or warn based on topic
+# Topic Guard
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
         return
@@ -182,19 +162,16 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for rank, topics in rank_access_topics.items():
         allowed_topics += topics
         if rank == user_rank:
-            break  # stop once we reach user's rank
+            break
 
     topic_name = update.message.message_thread_title or ""
     if topic_name not in allowed_topics:
-        try:
-            await update.message.delete()
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                message_thread_id=update.message.message_thread_id,
-                text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
-            )
-        except:
-            pass
+        await update.message.delete()
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            message_thread_id=update.message.message_thread_id,
+            text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
+        )
 
 # /promoteme
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -206,47 +183,15 @@ async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ After replying, an admin will be notified automatically."
     )
 
-# Forward replies to /promoteme message to admin
+# Forward promoteme replies
 async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.reply_to_message and "rank promotion" in update.message.reply_to_message.text:
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"📬 Rank request from @{update.effective_user.username}:\n\n{update.message.text}"
-            )
-        except Exception as e:
-            print(f"Failed to forward promoteme submission: {e}")
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"📬 Rank request from @{update.effective_user.username}:\n\n{update.message.text}"
+        )
 
-# /demote <@user>
-async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("❌ Not authorized.")
-    if len(context.args) < 1:
-        return await update.message.reply_text("Usage: /demote <@username>")
-
-    username = context.args[0].lstrip('@')
-    uid = next((uid for uid, data in onboarding_memory.items() if data.get("username") == username), None)
-
-    if uid and uid in user_ranks:
-        old_rank = user_ranks.pop(uid)
-        await update.message.reply_text(f"⚠️ @{username} was demoted (removed from `{old_rank}`).", parse_mode="Markdown")
-    else:
-        await update.message.reply_text(f"⚠️ User @{username} not found or has no rank.")
-
-# /viewonboarding (admin)
-async def view_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-    if not onboarding_memory:
-        await update.message.reply_text("🗃 No onboarding data yet.")
-        return
-    msg = "📋 Onboarding Activity:\n\n"
-    for uid, data in onboarding_memory.items():
-        rank = user_ranks.get(uid, "❌ Unranked")
-        msg += f"• {data['first_name']} (@{data['username']}) → `{data['learning_path']}` | Rank: {rank}\n"
-    await update.message.reply_text(msg, parse_mode="Markdown")
-
-# /assignrank <@user> <Rank>
+# /assignrank
 async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("❌ Not authorized.")
@@ -263,11 +208,44 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found in onboarding memory.")
 
+# /demote
+async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("❌ Not authorized.")
+    if len(context.args) < 1:
+        return await update.message.reply_text("Usage: /demote <@username>")
+
+    username = context.args[0].lstrip('@')
+    uid = next((uid for uid, data in onboarding_memory.items() if data.get("username") == username), None)
+
+    if uid and uid in user_ranks:
+        old_rank = user_ranks.pop(uid)
+        await update.message.reply_text(f"⚠️ @{username} was demoted from `{old_rank}`.", parse_mode="Markdown")
+    else:
+        await update.message.reply_text(f"⚠️ User @{username} not found or unranked.")
+
+# /myrank
+async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    rank = user_ranks.get(uid, "❌ Unranked")
+    await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
+
+# /logs
+async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    try:
+        with open('scamsclub_bot.log', 'r') as f:
+            lines = f.readlines()[-20:]
+            await update.message.reply_text("📝 Last 20 Log Entries:\n\n" + ''.join(lines[-20:]))
+    except FileNotFoundError:
+        await update.message.reply_text("⚠️ No log file found.")
+
 # /status
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is online and running smoothly.")
 
-# Webhook health
+# Webhook healthcheck
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
@@ -275,20 +253,18 @@ async def healthcheck(request):
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+
     app.add_handler(CommandHandler("status", status_command))
-    app.add_handler(CommandHandler("viewonboarding", view_onboarding))
     app.add_handler(CommandHandler("assignrank", assign_rank))
+    app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
-    app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("logs", view_logs))
-    
 
     async def telegram_webhook(request):
         data = await request.json()
