@@ -48,34 +48,34 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 🏥 Health check for Railway
 async def healthcheck(request):
-    return web.Response(text="OK", status=200)
+    return web.Response(text="✅ Bot is alive!", status=200)
 
-# 🧠 Main runner
 async def main():
+    # Create Telegram app
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # Register handlers
     app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
-    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("👋 Welcome!")))
+    app.add_handler(CommandHandler("status", lambda update, context: update.message.reply_text("✅ Bot is healthy.")))
 
     # Set webhook
     await app.bot.set_webhook(WEBHOOK_URL)
 
-    # Healthcheck server for Railway
-    runner = web.AppRunner(web.Application())
+    # Build aiohttp web app BEFORE router freezes
+    web_app = web.Application()
+    web_app.router.add_get("/status", healthcheck)
+    web_app.router.add_post("/telegram-webhook", app.webhook_handler)
+
+    # Serve
+    runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-    runner.app.router.add_get("/status", healthcheck)
 
-    # Telegram webhook (let Telegram app manage its own webhook route)
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL,
-        path="/telegram-webhook"
-    )
+    print(f"🚀 Webhook running on port {PORT}")
+    await asyncio.Event().wait()  # Keep running
 
 if __name__ == "__main__":
     asyncio.run(main())
