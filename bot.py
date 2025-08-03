@@ -33,6 +33,13 @@ rank_access_topics = {
 
 # --- Handlers ---
 
+    # Logging config
+logging.basicConfig(
+    filename='scamsclub_bot.log',
+    filemode='a',
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
         return
@@ -277,14 +284,6 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
     app.add_handler(CommandHandler("threadid", threadid))
-
-    # Logging config
-logging.basicConfig(
-    filename='scamsclub_bot.log',
-    filemode='a',
-    format='[%(asctime)s] %(levelname)s - %(message)s',
-    level=logging.INFO
-)
     
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
