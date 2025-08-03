@@ -307,8 +307,6 @@ async def main():
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
-    setup_webhook_routes(web_app, app)
-
 
     await app.bot.set_webhook(WEBHOOK_URL)
     await app.initialize()
