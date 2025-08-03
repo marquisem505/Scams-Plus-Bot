@@ -9,6 +9,14 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
 
+    # Logging config
+logging.basicConfig(
+    filename='scamsclub_bot.log',
+    filemode='a',
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
 # Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
