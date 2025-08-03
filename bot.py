@@ -33,8 +33,20 @@ rank_access_topics = {
     "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
 }
 
-# --- Handlers ---
+# --- Commands ---
 
+# /dumpthreads
+async def dump_threads(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("❌ Not authorized.")
+
+    if not seen_topics:
+        return await update.message.reply_text("📭 No topics have been recorded yet.")
+
+    lines = [f"`{name}` = `{tid}`" for tid, name in seen_topics.items()]
+    dump = "\n".join(lines)
+    await update.message.reply_text(dump, parse_mode="Markdown")
+    
     # Logging config
 logging.basicConfig(
     filename='scamsclub_bot.log',
@@ -292,6 +304,7 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
     app.add_handler(CommandHandler("threadid", threadid))
+    app.add_handler(CommandHandler("dumpthreads", dump_threads))
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
