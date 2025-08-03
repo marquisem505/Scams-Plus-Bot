@@ -1,3 +1,4 @@
+# --- Imports ---
 import os
 import asyncio
 import logging
@@ -9,15 +10,7 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
 
-    # Logging config
-logging.basicConfig(
-    filename='scamsclub_bot.log',
-    filemode='a',
-    format='[%(asctime)s] %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
-# Load environment variables
+# --- Load ENV ---
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
@@ -26,11 +19,12 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
 
-# Memory
+# --- Memory ---
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
 seen_topics = {}
 
+# --- Ranks ---
 rank_access_topics = {
     "Lookout": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Tools & Bots", "Verified Guides"],
     "Runner": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides"],
@@ -48,6 +42,8 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+# --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
         return
@@ -77,6 +73,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse /promoteme if you think you’re ready."
         )
 
+# --- Welcome ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = InlineKeyboardMarkup([
@@ -108,6 +105,7 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode="HTML"
         )
 
+# --- Buttons ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -188,7 +186,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-# /promoteme
+# --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📤 To request a rank promotion, reply here with:\n\n"
@@ -198,7 +196,7 @@ async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ After replying, an admin will be notified automatically."
     )
 
-# Forward promoteme replies
+# --- Forward Promote Me Replies ---
 async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.reply_to_message and "rank promotion" in update.message.reply_to_message.text:
         await context.bot.send_message(
@@ -206,7 +204,7 @@ async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"📬 Rank request from @{update.effective_user.username}:\n\n{update.message.text}"
         )
 
-# /assignrank
+# --- Assign Ranks ---
 async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("❌ Not authorized.")
@@ -223,7 +221,7 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found in onboarding memory.")
 
-# /demote
+# --- Demote Ranks ---
 async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("❌ Not authorized.")
@@ -239,13 +237,13 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found or unranked.")
 
-# /myrank
+# --- View My Rank ---
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     rank = user_ranks.get(uid, "❌ Unranked")
     await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 
-# /logs
+# --- View Logs ---
 async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -256,26 +254,28 @@ async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except FileNotFoundError:
         await update.message.reply_text("⚠️ No log file found.")
 
-# /status
+# --- Status ---
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is online and running smoothly.")
 
-# Webhook healthcheck
+# --- Webhook Healthcheck ---
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
+# --- Thread ID ---
 async def threadid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     thread_id = update.message.message_thread_id
     topic_name = update.message.message_thread_title or "Unknown"
     await update.message.reply_text(f"`{topic_name}` has ID `{thread_id}`", parse_mode="Markdown")
 
+# --- Webhook ---
 async def telegram_webhook(request):
         data = await request.json()
         update = Update.de_json(data, app.bot)
         await app.update_queue.put(update)
         return web.Response(text="OK")
 
-# --- MAIN ---
+# --- Mains ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
