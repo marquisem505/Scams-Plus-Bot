@@ -300,6 +300,7 @@ async def main():
 
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, topic_guard))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
@@ -309,7 +310,8 @@ async def main():
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("demote", demote))
-    app.add_handler(CommandHandler("logs", view_logs))  
+    app.add_handler(CommandHandler("logs", view_logs)) 
+    
 
     async def telegram_webhook(request):
     data = await request.json()
