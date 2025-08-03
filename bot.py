@@ -1,15 +1,18 @@
+import os
+import asyncio
+from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes, ChatMemberHandler
 )
-import os
-from dotenv import load_dotenv
 
 # 🔐 Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g. https://scamsclub.store/telegram-webhook
+PORT = int(os.getenv("PORT", 8080))
 
 # 👋 Triggered when someone joins
 async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -37,30 +40,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "start_onboarding":
         await query.message.reply_text("🧠 Let's get you onboarded. First, what do you want to learn?")
-        # 👆 Later: Start an onboarding flow here
-
     elif query.data == "help":
         await query.message.reply_text("👤 DM @ScamsClubSupport or ask your inviter for help.")
 
-# 🧠 Main function
-def main():
+# 🧠 Main async webhook runner
+async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Welcome new members
+    # Register handlers
     app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
-
-    # Button click logic
     app.add_handler(CallbackQueryHandler(button_handler))
-
-    # Optional /start handler
     app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("👋 Welcome!")))
 
-    # Optional: catch unexpected messages or unknown events
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, lambda *_: None))
-    app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, lambda *_: None))
-
-    # Start polling
-    app.run_polling()
+    # Set webhook and start server
+    await app.bot.set_webhook(WEBHOOK_URL)
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL,
+        path="/telegram-webhook",
+    )
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
