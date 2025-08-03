@@ -268,11 +268,14 @@ async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
 # --- Webhook ---
-async def telegram_webhook(request):
+def setup_webhook_routes(web_app, telegram_app):
+    async def telegram_webhook(request):
         data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.update_queue.put(update)
+        update = Update.de_json(data, telegram_app.bot)
+        await telegram_app.update_queue.put(update)
         return web.Response(text="OK")
+
+    web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
 # --- Mains ---
 async def main():
@@ -291,7 +294,7 @@ async def main():
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
-    web_app.router.add_post("/telegram-webhook", telegram_webhook)
+    setup_webhook_routes(web_app, app)
 
     await app.bot.set_webhook(WEBHOOK_URL)
     await app.initialize()
