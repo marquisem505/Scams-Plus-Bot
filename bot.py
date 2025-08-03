@@ -1,7 +1,7 @@
 # --- Imports ---
 import os
 import asyncio
-import logging
+
 from aiohttp import web
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -22,7 +22,6 @@ PORT = int(os.getenv("PORT", 8080))
 # --- Memory ---
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
-seen_topics = {}
 
 # --- Ranks ---
 rank_access_topics = {
@@ -32,58 +31,6 @@ rank_access_topics = {
     "Inner Circle": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"],
     "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
 }
-
-# --- Commands ---
-
-# /dumpthreads
-async def dump_threads(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("❌ Not authorized.")
-
-    if not seen_topics:
-        return await update.message.reply_text("📭 No topics have been recorded yet.")
-
-    lines = [f"`{name}` = `{tid}`" for tid, name in seen_topics.items()]
-    dump = "\n".join(lines)
-    await update.message.reply_text(dump, parse_mode="Markdown")
-    
-    # Logging config
-logging.basicConfig(
-    filename='scamsclub_bot.log',
-    filemode='a',
-    format='[%(asctime)s] %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-
-# --- Topic Guard ---
-async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
-        return
-
-    uid = update.effective_user.id
-    user_rank = user_ranks.get(uid, "Lookout")
-    allowed_topics = []
-
-    for rank, topics in rank_access_topics.items():
-        allowed_topics += topics
-        if rank == user_rank:
-            break
-
-    topic_id = update.message.message_thread_id
-    topic_name = update.message.message_thread_title or "Unknown"
-
-    # Log unseen topics
-    if topic_id not in seen_topics:
-        seen_topics[topic_id] = topic_name
-        logging.info(f"🔍 Discovered Topic: {topic_name} (ID: {topic_id})")
-
-    if topic_name not in allowed_topics:
-        await update.message.delete()
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            message_thread_id=topic_id,
-            text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse /promoteme if you think you’re ready."
-        )
 
 # --- Welcome ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -274,12 +221,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
-# --- Thread ID ---
-async def threadid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    thread_id = update.message.message_thread_id
-    topic_name = update.message.message_thread_title or "Unknown"
-    await update.message.reply_text(f"`{topic_name}` has ID `{thread_id}`", parse_mode="Markdown")
-
 # --- Webhook ---
 async def telegram_webhook(request):
         data = await request.json()
@@ -302,9 +243,6 @@ async def main():
     app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
-    app.add_handler(CommandHandler("logs", view_logs))
-    app.add_handler(CommandHandler("threadid", threadid))
-    app.add_handler(CommandHandler("dumpthreads", dump_threads))
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
