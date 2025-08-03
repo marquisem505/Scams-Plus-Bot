@@ -272,6 +272,8 @@ async def main():
     app.add_handler(CommandHandler("logs", view_logs))
     app.add_handler(CommandHandler("threadid", threadid))
 
+    logging.info("🚀 Bot started successfully")
+    
     async def telegram_webhook(request):
         data = await request.json()
         update = Update.de_json(data, app.bot)
