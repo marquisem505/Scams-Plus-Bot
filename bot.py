@@ -8,14 +8,13 @@ from telegram.ext import (
     MessageHandler, filters, ContextTypes, ChatMemberHandler
 )
 
-# 🔐 Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # e.g., https://scamsclub.store/telegram-webhook
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
-# 👋 Triggered when someone joins the group
+# 👋 New member handler
 async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
@@ -34,50 +33,49 @@ async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-# 🎯 Handles button clicks
+# 🔘 Button handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     if query.data == "start_onboarding":
         await query.message.reply_text("🧠 Let's get you onboarded. First, what do you want to learn?")
     elif query.data == "help":
         await query.message.reply_text("👤 DM @ScamsClubSupport or ask your inviter for help.")
 
-# 🩺 Telegram /status command
+# 🟢 /status handler
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is online and running smoothly.")
 
-# 🚑 Web status endpoint for Railway health checks
+# 🏥 Health check for Railway
 async def healthcheck(request):
     return web.Response(text="OK", status=200)
 
-# 🧠 Main async webhook runner
+# 🧠 Main runner
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Telegram bot handlers
     app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("👋 Welcome!")))
+    app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
     app.add_handler(CommandHandler("status", status_command))
 
-    # Setup webhook with Telegram
+    # Set webhook
     await app.bot.set_webhook(WEBHOOK_URL)
 
-    # aiohttp web app for webhook + health
-    web_app = web.Application()
-    web_app.router.add_post("/telegram-webhook", app.webhook_handler)
-    web_app.router.add_get("/status", healthcheck)
-
-    runner = web.AppRunner(web_app)
+    # Healthcheck server for Railway
+    runner = web.AppRunner(web.Application())
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
+    runner.app.router.add_get("/status", healthcheck)
 
-    print(f"🚀 Webhook running at {WEBHOOK_URL}")
-    await asyncio.Event().wait()  # Keeps the bot alive
+    # Telegram webhook (let Telegram app manage its own webhook route)
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL,
+        path="/telegram-webhook"
+    )
 
-# 🏁 Start the bot
 if __name__ == "__main__":
     asyncio.run(main())
