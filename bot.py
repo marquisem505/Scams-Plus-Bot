@@ -17,6 +17,7 @@ PORT = int(os.getenv("PORT", 8080))
 
 # 👋 Greet new members
 async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("✅ Detected new member join")
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
         return
@@ -57,7 +58,7 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     # Handlers
-    app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
     app.add_handler(CommandHandler("status", status_command))
