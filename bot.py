@@ -22,16 +22,51 @@ PORT = int(os.getenv("PORT", 8080))
 # --- Memory ---
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
+seen_topics = {}
 
 # --- Ranks ---
 rank_access_topics = {
     "Lookout": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Tools & Bots", "Verified Guides"],
     "Runner": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides"],
     "Closer": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab"],
-    "Inner Circle": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"],
-    "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
+    "Inner Circle": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "V.I.P. Lounge"],
+    "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "V.I.P. Lounge"]
 }
 
+async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
+        return
+
+    uid = update.effective_user.id
+    user_rank = user_ranks.get(uid, "Lookout")
+
+    # Compile allowed topics for this rank
+    allowed_topics = []
+    for rank, topics in rank_access_topics.items():
+        allowed_topics += topics
+        if rank == user_rank:
+            break
+
+    topic_id = update.message.message_thread_id
+    topic_name = update.message.message_thread_title or "Unknown"
+
+    # Store new topic IDs for future reference
+    if topic_id not in seen_topics:
+        seen_topics[topic_id] = topic_name
+        print(f"🧵 Discovered topic: {topic_name} (ID: {topic_id})")
+
+    # Enforce rank restriction
+    if topic_name not in allowed_topics:
+        try:
+            await update.message.delete()
+            await context.bot.send_message(
+                chat_id=GROUP_ID,
+                message_thread_id=topic_id,
+                text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse /promoteme if you think you're ready."
+            )
+        except:
+            pass
+            
 # --- Welcome ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
@@ -237,7 +272,6 @@ async def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
-
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
     app.add_handler(CommandHandler("demote", demote))
