@@ -323,6 +323,7 @@ async def main():
 
     await app.bot.set_webhook(WEBHOOK_URL)
     await app.initialize()
+
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
