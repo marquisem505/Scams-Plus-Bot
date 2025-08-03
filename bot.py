@@ -249,16 +249,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
-async def get_topics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return await update.message.reply_text("❌ Not authorized.")
-
-    forum = await context.bot.get_forum_topic_list(chat_id=GROUP_ID)
-    msg = "🧵 *All Group Topics:*\n\n"
-    for topic in forum.topics:
-        msg += f"• `{topic.name}` — ID: `{topic.message_thread_id}`\n"
-    await update.message.reply_text(msg, parse_mode="Markdown")
-
 # --- MAIN ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -275,7 +265,6 @@ async def main():
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
-    app.add_handler(CommandHandler("gettopics", get_topics))
 
     async def telegram_webhook(request):
         data = await request.json()
