@@ -115,6 +115,20 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode="HTML"
         )
 
+# --- View Onboarding ---
+async def view_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if not onboarding_memory:
+        await update.message.reply_text("🗃 No onboarding data yet.")
+        return
+    msg = "📋 Onboarding Activity:\n\n"
+    for uid, data in onboarding_memory.items():
+        rank = user_ranks.get(uid, "❌ Unranked")
+        msg += f"• {data['first_name']} (@{data['username']}) → `{data['learning_path']}` | Rank: {rank}\n"
+    await update.message.reply_text(msg, parse_mode="Markdown")
+
+
 # --- Buttons ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
