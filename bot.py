@@ -83,7 +83,7 @@ async def dumpthreads(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"• {t.name} — `{t.message_thread_id}`\n"
     await update.message.reply_text(text, parse_mode="Markdown")
 
-# --- Welcome ---
+# --- Welcome Fallback ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = InlineKeyboardMarkup([
@@ -97,7 +97,7 @@ async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-
+# --- Welcome ---
 async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
@@ -277,36 +277,35 @@ async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
 # --- Webhook ---
-def setup_webhook_routes(web_app, telegram_app):
-    async def telegram_webhook(request):
-        data = await request.json()
-        update = Update.de_json(data, telegram_app.bot)
-        await telegram_app.update_queue.put(update)
-        return web.Response(text="OK")
+async def healthcheck(request):
+    return web.Response(text="✅ Bot is alive!", status=200)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 I'm Scam’s Club Bot. Type /status to check my health.")
-
-
-# --- Mains ---
+# --- MAIN ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.SUPERGROUP, topic_guard))
-    app.add_handler(CommandHandler("dumpthreads", dumpthreads))
+    app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("viewonboarding", view_onboarding))
     app.add_handler(CommandHandler("assignrank", assign_rank))
-    app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
-    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("demote", demote))
+    app.add_handler(CommandHandler("logs", view_logs))  
+
+    async def telegram_webhook(request):
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.update_queue.put(update)
+        return web.Response(text="OK")
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
+    web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
     await app.bot.set_webhook(WEBHOOK_URL)
     await app.initialize()
