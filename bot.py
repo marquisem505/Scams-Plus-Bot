@@ -317,7 +317,7 @@ async def telegram_webhook(request):
     data = await request.json()
     update = Update.de_json(data, app.bot)
     await app.update_queue.put(update)
-    return web.Response(text="OK"))
+    return web.Response(text="OK")
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
