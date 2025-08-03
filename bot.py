@@ -1,67 +1,65 @@
-import logging
-import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, ChatMemberHandler, CallbackQueryHandler,
-    ContextTypes
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, filters, ContextTypes, ChatMemberHandler
 )
+import os
 from dotenv import load_dotenv
 
+# 🔐 Load environment variables
 load_dotenv()
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = int(os.getenv("GROUP_ID"))
+GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
 
-logging.basicConfig(level=logging.INFO)
+# 👋 Triggered when someone joins
+async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = update.chat_member.new_chat_member.user
+    if update.chat_member.chat.id != GROUP_ID:
+        return
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data == "starter_pack":
-        await query.edit_message_text(
-            "📦 **Starter Pack:**\n- Refund Guide\n- OTP Bot APK\n- Spoofer Tool\n\nRespect the rank system. No spoon-feeding."
-        )
-    elif data == "info":
-        await query.edit_message_text(
-            "📚 **What’s Inside:**\n\n🧠 Con Academy – Learn drops\n🛠 Tools & Bots – Installers\n📋 Verified Guides – Step-by-step\n🧪 Testing Lab – Try drops\n🪩 VIP Lounge – Ranked access only"
-        )
-    elif data == "rules":
-        await query.edit_message_text(
-            "🚫 **Rules:**\n- Don’t ask for free sauce\n- Use the right topics\n- Don’t leak\n- Don’t post unverified drops\n- Respect your rank or get bounced"
-        )
-
-async def member_joined(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    result = update.chat_member
-    if result.new_chat_member.status == "member" and result.chat.id == GROUP_ID:
-        user = result.new_chat_member.user
-        username = f"@{user.username}" if user.username else user.full_name
-
-        welcome_text = (
-            f"🔥 Welcome {username} — you just entered **Scam’s Club Plus**\n\n"
-            "🔰 You start as a **Lookout**\n"
-            "👑 Climb to Runner, Closer, Inner Circle, OG\n\n"
-            "👇 Use the buttons below to begin:"
-        )
-
-        buttons = [
-            [InlineKeyboardButton("💼 Get Starter Pack", callback_data="starter_pack")],
-            [InlineKeyboardButton("📚 What’s Inside", callback_data="info")],
-            [InlineKeyboardButton("🚫 Rules", callback_data="rules")],
-            [InlineKeyboardButton("💬 Introduce Yourself", url="https://t.me/c/2019911042/1234")]
-        ]
-
+    if update.chat_member.status == "member":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
+            [InlineKeyboardButton("📚 Group Rules", url="https://t.me/ScamsClubRules")],
+            [InlineKeyboardButton("❓ Need Help?", callback_data="help")]
+        ])
         await context.bot.send_message(
             chat_id=GROUP_ID,
-            text=welcome_text,
-            reply_markup=InlineKeyboardMarkup(buttons)
+            text=f"👋 Welcome {member.mention_html()} to Scam’s Plus!\n\nPress a button below to get started 👇",
+            reply_markup=keyboard,
+            parse_mode="HTML"
         )
 
+# 🎯 Handles button clicks
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "start_onboarding":
+        await query.message.reply_text("🧠 Let's get you onboarded. First, what do you want to learn?")
+        # 👆 Later: Start an onboarding flow here
+
+    elif query.data == "help":
+        await query.message.reply_text("👤 DM @ScamsClubSupport or ask your inviter for help.")
+
+# 🧠 Main function
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(ChatMemberHandler(member_joined, ChatMemberHandler.CHAT_MEMBER))
-    app.add_handler(CallbackQueryHandler(button_callback))
+
+    # Welcome new members
+    app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
+
+    # Button click logic
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    # Optional /start handler
+    app.add_handler(CommandHandler("start", lambda update, context: update.message.reply_text("👋 Welcome!")))
+
+    # Optional: catch unexpected messages or unknown events
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, lambda *_: None))
+    app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, lambda *_: None))
+
+    # Start polling
     app.run_polling()
 
 if __name__ == "__main__":
