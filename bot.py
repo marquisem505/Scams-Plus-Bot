@@ -17,13 +17,6 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
-# Logging config
-logging.basicConfig(
-    filename='scamsclub_bot.log',
-    filemode='a',
-    format='[%(asctime)s] %(levelname)s - %(message)s',
-    level=logging.INFO
-)
 
 # Memory
 onboarding_memory = {}   # user_id: dict
@@ -272,6 +265,13 @@ async def main():
     app.add_handler(CommandHandler("logs", view_logs))
     app.add_handler(CommandHandler("threadid", threadid))
 
+    # Logging config
+logging.basicConfig(
+    filename='scamsclub_bot.log',
+    filemode='a',
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    level=logging.INFO
+)
     logging.info("🚀 Bot started successfully")
     
     async def telegram_webhook(request):
