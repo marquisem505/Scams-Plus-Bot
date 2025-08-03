@@ -247,6 +247,12 @@ async def threadid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     topic_name = update.message.message_thread_title or "Unknown"
     await update.message.reply_text(f"`{topic_name}` has ID `{thread_id}`", parse_mode="Markdown")
 
+async def telegram_webhook(request):
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.update_queue.put(update)
+        return web.Response(text="OK")
+
 # --- MAIN ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -273,12 +279,6 @@ logging.basicConfig(
     level=logging.INFO
 )
     
-    async def telegram_webhook(request):
-        data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.update_queue.put(update)
-        return web.Response(text="OK")
-
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
