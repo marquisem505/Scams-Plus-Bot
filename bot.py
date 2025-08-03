@@ -30,7 +30,7 @@ async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_
         ])
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f"👋 Welcome {member.mention_html()} to Scam’s Plus!\nThis ain’t your average chat. Everything here is structured, ranked, and protected. You’re now part of a closed network built for running smarter plays, not reckless burned sauce.\n\nPress a button below to get started 👇",
+            text=f"👋 Welcome {member.mention_html()} to Scam’s Plus!\nThis ain’t your average chat. Everything here is structured, ranked, and protected. You’re now part of a closed network built for running smarter plays, not reckless burnt sauce.\n\nPress a button below to get started 👇",
             reply_markup=keyboard,
             parse_mode="HTML"
         )
