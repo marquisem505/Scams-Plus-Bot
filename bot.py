@@ -1,5 +1,7 @@
 import os
 import asyncio
+import logging
+
 from aiohttp import web
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -16,16 +18,24 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
+# Basic file logging
+logging.basicConfig(
+    filename='scamsclub_bot.log',
+    filemode='a',
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
 # In-memory tracking
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
 
 rank_access_topics = {
-    "Lookout": ["General Chat", "Questions", "Tools & Bots"],
-    "Runner": ["Verified Guides", "Con Academy"],
-    "Closer": ["Verified Vendors", "Testing Lab"],
-    "Inner Circle": ["VIP Lounge"],
-    "OG Member": ["VIP Lounge"]
+    "Lookout": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Tools & Bots", "Verified Guides"],
+    "Runner": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides"],
+    "Closer": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab"],
+    "Inner Circle": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"],
+    "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
 }
 
 # Welcome message (MessageHandler)
@@ -141,6 +151,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👉 Start exploring pinned topics or tag a mentor if you’re stuck.",
             parse_mode="Markdown"
         )
+
+# /logs (admin only, last 20 lines)
+async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    try:
+        with open('scamsclub_bot.log', 'r') as f:
+            lines = f.readlines()[-20:]
+            await update.message.reply_text("📝 Last 20 Log Entries:\n\n" + ''.join(lines[-20:]))
+    except FileNotFoundError:
+        await update.message.reply_text("⚠️ No log file found.")
 
 # /myrank
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -265,6 +287,7 @@ async def main():
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("demote", demote))
+    app.add_handler(CommandHandler("logs", view_logs))
     
 
     async def telegram_webhook(request):
