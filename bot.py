@@ -75,7 +75,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "help":
-        await query.message.reply_text("👤 DM @ScamsClubSupport or ask your inviter for help.")
+        await query.message.reply_text("👤 DM @ScamsClub_Store for help.")
 
     elif query.data.startswith("learn_"):
         choice = query.data.replace("learn_", "")
