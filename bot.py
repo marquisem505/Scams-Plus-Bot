@@ -1,7 +1,7 @@
 # --- Imports ---
 import os
 import asyncio
-
+import logging
 from aiohttp import web
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -33,6 +33,11 @@ rank_access_topics = {
     "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "V.I.P. Lounge"]
 }
 
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO,
+    filename='scamsclub_bot.log'
+)
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
         return
@@ -279,6 +284,9 @@ def setup_webhook_routes(web_app, telegram_app):
         await telegram_app.update_queue.put(update)
         return web.Response(text="OK")
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 I'm Scam’s Club Bot. Type /status to check my health.")
+
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
 # --- Mains ---
@@ -289,12 +297,14 @@ async def main():
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.SUPERGROUP, topic_guard))
     app.add_handler(CommandHandler("dumpthreads", dumpthreads))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
     app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
+    app.add_handler(CommandHandler("start", start))
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
