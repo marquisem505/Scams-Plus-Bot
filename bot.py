@@ -249,6 +249,17 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
+async def telegram_webhook(request):
+    try:
+        print("📥 Webhook received.")
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.update_queue.put(update)
+        return web.Response(text="OK")
+    except Exception as e:
+        print("❌ Webhook error:", str(e))
+        return web.Response(status=500, text=f"Error: {e}")
+
 # --- MAIN ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -265,17 +276,6 @@ async def main():
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
-
-    async def telegram_webhook(request):
-    try:
-        print("📥 Webhook received.")
-        data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.update_queue.put(update)
-        return web.Response(text="OK")
-    except Exception as e:
-        print("❌ Webhook error:", str(e))
-        return web.Response(status=500, text=f"Error: {e}")
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
