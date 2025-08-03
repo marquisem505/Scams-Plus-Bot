@@ -287,7 +287,6 @@ def setup_webhook_routes(web_app, telegram_app):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 I'm Scam’s Club Bot. Type /status to check my health.")
 
-    web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
 # --- Mains ---
 async def main():
@@ -308,7 +307,9 @@ async def main():
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
+    web_app.router.add_post("/telegram-webhook", telegram_webhook)
     setup_webhook_routes(web_app, app)
+
 
     await app.bot.set_webhook(WEBHOOK_URL)
     await app.initialize()
