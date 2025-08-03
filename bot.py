@@ -66,7 +66,18 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         except:
             pass
-            
+
+# --- Dump Threads ---
+async def dumpthreads(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return await update.message.reply_text("❌ Not authorized.")
+    
+    threads = await context.bot.get_forum_topic_list(chat_id=GROUP_ID)
+    text = "🧵 Thread Titles & IDs:\n\n"
+    for t in threads:
+        text += f"• {t.name} — `{t.message_thread_id}`\n"
+    await update.message.reply_text(text, parse_mode="Markdown")
+
 # --- Welcome ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
@@ -271,7 +282,7 @@ async def main():
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+    app.add_handler(CommandHandler("dumpthreads", dumpthreads))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
     app.add_handler(CommandHandler("demote", demote))
