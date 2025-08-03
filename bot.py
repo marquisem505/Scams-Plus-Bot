@@ -295,13 +295,20 @@ async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
 async def telegram_webhook(request):
-    data = await request.json()
-    update = Update.de_json(data, app.bot)
-    await app.update_queue.put(update)
-    return web.Response(text="OK")
+    try:
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.update_queue.put(update)
+        return web.Response(text="OK")
+    except Exception as e:
+        logging.exception("❌ Error in telegram_webhook:")
+        return web.Response(text=f"Error: {str(e)}", status=500)
 
 # --- MAIN ---
 async def main():
+    global app
+    app = Application.builder().token(BOT_TOKEN).build()
+    ...
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
