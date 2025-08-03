@@ -203,7 +203,11 @@ async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Forward Promote Me Replies ---
 async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.reply_to_message and "rank promotion" in update.message.reply_to_message.text:
+    if (
+        update.message.reply_to_message and
+        update.message.reply_to_message.text and
+        "rank promotion" in update.message.reply_to_message.text.lower()
+    ):
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=f"📬 Rank request from @{update.effective_user.username}:\n\n{update.message.text}"
