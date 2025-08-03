@@ -313,7 +313,7 @@ async def main():
 
     async def telegram_webhook(request):
     data = await request.json()
-    update = Update.de_json(data, app.bot)  
+    update = Update.de_json(data, app.bot)
     await app.update_queue.put(update)
     return web.Response(text="OK")
 
