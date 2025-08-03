@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ContextTypes, filters
+    ChatMemberHandler, MessageHandler, ContextTypes, filters
 )
 
 # 🔐 Load environment
@@ -58,6 +58,7 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     # Handlers
+    app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_user))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
