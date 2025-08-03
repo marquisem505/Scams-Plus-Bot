@@ -267,11 +267,15 @@ async def main():
     app.add_handler(CommandHandler("logs", view_logs))
 
     async def telegram_webhook(request):
-    print("📥 Webhook hit!")
-    data = await request.json()
-    update = Update.de_json(data, app.bot)
-    await app.update_queue.put(update)
-    return web.Response(text="OK")
+    try:
+        print("📥 Webhook received.")
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.update_queue.put(update)
+        return web.Response(text="OK")
+    except Exception as e:
+        print("❌ Webhook error:", str(e))
+        return web.Response(status=500, text=f"Error: {e}")
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
