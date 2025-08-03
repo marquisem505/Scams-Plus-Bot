@@ -34,7 +34,7 @@ async def welcome_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-# 🟢 Button interaction
+# 🔘 Button interaction
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -43,38 +43,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "help":
         await query.message.reply_text("👤 DM @ScamsClubSupport or ask your inviter for help.")
 
-# 📶 /status command
+# ✅ /status command
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is online and running smoothly.")
 
-# ✅ Healthcheck endpoint
+# 🩺 Healthcheck route
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
-# 🧠 Main entry
+# 🚀 Main function
 async def main():
+    # Create telegram app
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Register bot handlers
+    # Handlers
     app.add_handler(ChatMemberHandler(welcome_user, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("👋 Welcome!")))
     app.add_handler(CommandHandler("status", status_command))
 
-    # Create aiohttp app
+    # Telegram webhook POST receiver
     async def telegram_webhook(request):
         data = await request.json()
-        await app.update_queue.put(Update.de_json(data, app.bot))
+        update = Update.de_json(data, app.bot)
+        await app.update_queue.put(update)
         return web.Response(text="OK")
 
+    # aiohttp app with both webhook & healthcheck
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
-    # Set Telegram webhook
+    # Telegram webhook
     await app.bot.set_webhook(WEBHOOK_URL)
 
-    # Start both servers
+    # REQUIRED: initialize the app before starting
+    await app.initialize()
+
+    # Start aiohttp server
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
@@ -84,6 +90,5 @@ async def main():
     await app.start()
     await asyncio.Event().wait()
 
-# 🔁 Run it
 if __name__ == "__main__":
     asyncio.run(main())
