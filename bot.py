@@ -272,7 +272,6 @@ logging.basicConfig(
     format='[%(asctime)s] %(levelname)s - %(message)s',
     level=logging.INFO
 )
-    logging.info("🚀 Bot started successfully")
     
     async def telegram_webhook(request):
         data = await request.json()
