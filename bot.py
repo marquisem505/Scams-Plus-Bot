@@ -292,7 +292,7 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
     app.add_handler(CommandHandler("threadid", threadid))
-    
+
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
