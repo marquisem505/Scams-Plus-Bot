@@ -69,7 +69,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🔗 Collab With Vendors", callback_data="learn_vendors")],
                 [InlineKeyboardButton("🧑‍🎓 Get Mentorship?", callback_data="learn_mentorship")],
                 [InlineKeyboardButton("🙋 Ask Questions?", callback_data="learn_questions")],
-                [InlineKeyboardButton("💳 Learn About V.I.P. Lounge?", callback_data="learn_vip")],
+                [InlineKeyboardButton("🥇 Learn About V.I.P. Lounge?", callback_data="learn_vip")],
                 [InlineKeyboardButton("❓ Not Sure Yet", callback_data="learn_unsure")]
             ])
         )
@@ -89,10 +89,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "drops": "🔥 Good choice. Check out the `Verified Guides` and `Con Academy` threads to begin.",
             "tools": "🛠 You’ll want to hit the `Tools & Bots` thread — we keep all the real builds in there.",
             "mentorship": "🧑‍🎓 Check the `Con Academy` topic — one of our mentors will reach out to you.",
-            "vip": "🧑‍🎓 Check the `V.I.P Lounge` topic — you'll learn how to get your rank up to become whitelisted into the lounge.",
+            "vip": "🥇 Check the `V.I.P Lounge` topic — you'll learn how to get your rank up to become whitelisted into the lounge.",
             "questions": "🙋 Go to the `Questions` topic — one of our admins/members will answer any questions you may have.",
             "vendors": "🔗 Check the `Verified Vendors / Collabs` topic — only verified vendors are allowed.",
-            "unsure": "💡 No worries. Scroll through the `Welcome To Scam's Plus - Start Here` thread and lurk a bit before diving in."
+            "unsure": "💡 That's cool too. Scroll through the `Welcome To Scam's Plus - Start Here` thread and lurk a bit before diving in."
         }
         await query.message.reply_text(response_map.get(choice, "✅ You're all set."))
         
