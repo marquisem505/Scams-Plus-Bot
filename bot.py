@@ -173,29 +173,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-# Topic Guard
-async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
-        return
-
-    uid = update.effective_user.id
-    user_rank = user_ranks.get(uid, "Lookout")
-    allowed_topics = []
-
-    for rank, topics in rank_access_topics.items():
-        allowed_topics += topics
-        if rank == user_rank:
-            break
-
-    topic_name = update.message.message_thread_title or ""
-    if topic_name not in allowed_topics:
-        await update.message.delete()
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            message_thread_id=update.message.message_thread_id,
-            text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
-        )
-
 # /promoteme
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
