@@ -395,7 +395,6 @@ async def healthcheck(request):
 
 
 # --- Main ---
-init_db()
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -444,3 +443,4 @@ async def main():
 # --- Run ---
 if __name__ == "__main__":
     asyncio.run(main())
+init_db()
