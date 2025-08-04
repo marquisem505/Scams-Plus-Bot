@@ -247,29 +247,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
+    message = update.message
+    if not message or message.chat_id != GROUP_ID or message.message_thread_id is None:
         return
 
-    uid = update.effective_user.id
+    uid = message.from_user.id
+    username = message.from_user.username or "Unknown"
     user_rank = user_ranks.get(uid, "Lookout")
-    allowed_topics = []
+    topic_id = message.message_thread_id
 
-    for rank, topics in rank_access_topics.items():
-        allowed_topics += topics
+    # Build cumulative allowed topic IDs for the user's rank
+    allowed_topics = []
+    for rank, topic_ids in rank_access_topics.items():
+        allowed_topics += topic_ids
         if rank == user_rank:
             break
 
-    topic_id = update.message.message_thread_id
     if topic_id not in allowed_topics:
         try:
-            await update.message.delete()
+            await message.delete()
             await context.bot.send_message(
-                chat_id=update.effective_chat.id,
+                chat_id=GROUP_ID,
                 message_thread_id=topic_id,
-                text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
+                text=f"⚠️ @{username}, this topic is restricted to higher ranks.\nUse /promoteme to request access."
             )
+            logging.info(f"[GUARD] Deleted message from @{username} in unauthorized topic {topic_id} (Rank: {user_rank})")
         except Exception as e:
-            logging.error(f"Failed to delete or warn: {e}")
+            logging.error(f"[GUARD ERROR] Could not delete or warn: {e}")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -368,7 +372,7 @@ async def main():
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.StatusUpdate.ALL, topic_guard))
 
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
