@@ -198,9 +198,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("👤 DM @ScamsClub_Store for help.")
 
     elif query.data.startswith("learn_"):
-    choice = query.data.replace("learn_", "")
-    create_user_if_not_exists(user_id, query.from_user.username, query.from_user.first_name)
-    update_onboarding(user_id, learning_path=choice)
+        choice = query.data.replace("learn_", "")
+        create_user_if_not_exists(user_id, query.from_user.username, query.from_user.first_name)
+        update_onboarding(user_id, learning_path=choice)
 
     response_map = {
         "drops": "🔥 Good choice. Check out the `Verified Guides` and `Con Academy` threads to begin.",
