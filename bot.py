@@ -168,7 +168,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👉 Start exploring pinned topics or tag a mentor if you’re stuck.",
             parse_mode="Markdown"
         )
-
+# --- Check Rank --
+    elif query.data == "check_rank":
+        rank = user_ranks.get(user_id, "❌ Unranked")
+        await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
@@ -191,12 +194,6 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message_thread_id=update.message.message_thread_id,
             text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
         )
-
-# --- Check Rank ---
-elif query.data == "check_rank":
-    uid = query.from_user.id
-    rank = user_ranks.get(uid, "❌ Unranked")
-    await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
