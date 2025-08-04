@@ -26,6 +26,9 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
+# --- Initialize DB ---
+init_db()
+
 # --- Logging ---
 logging.basicConfig(
     filename='scamsclub_bot.log',
@@ -36,7 +39,6 @@ logging.basicConfig(
 
 # --- Memory ---
 onboarding_memory = {}   # user_id: dict
-user_ranks = {}          # user_id: rank
 violation_counts = {}  # user_id: int
 
 # --- Topic Mapping ---
@@ -134,11 +136,12 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
         return
+
     if update.chat_member.new_chat_member.status == "member":
         create_user_if_not_exists(member.id, member.username, member.first_name)
-    if get_user_rank(member.id) is None:
-    set_user_rank(member.id, "Lookout")
-    logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
+        if get_user_rank(member.id) is None:
+            set_user_rank(member.id, "Lookout")
+            logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
 
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
@@ -249,7 +252,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 # --- Check Rank --
     elif query.data == "check_rank":
-        rank = user_ranks.get(user_id, "❌ Unranked")
+        rank = get_user_rank(user_id) or "❌ Unranked"
         await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
         
 # --- Topic Guard ---
@@ -443,4 +446,3 @@ async def main():
 # --- Run ---
 if __name__ == "__main__":
     asyncio.run(main())
-init_db()
