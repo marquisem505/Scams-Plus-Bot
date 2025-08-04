@@ -264,6 +264,7 @@ async def telegram_webhook(request):
         except Exception as e:
             print("❌ Webhook error:", str(e))
             return web.Response(status=500, text=f"Error: {e}")
+            
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
