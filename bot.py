@@ -30,12 +30,78 @@ logging.basicConfig(
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
 
+topic_name_to_id = {
+    "Welcome To Scam's Plus - Start Here": 2458,
+    "General Chat": 2401,
+    "Scammers Warnings": 2408,
+    "Announcements": 2405,
+    "Con Academy": 2406,
+    "Questions": 2411,
+    "Tools & Bots": 2404,
+    "Verified Guides": 2403,
+    "Verified Vendors / Collabs": 2407,
+    "Testing Lab": 2454,
+    "VIP Lounge": 2402
+}
+
 rank_access_topics = {
-    "Lookout": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Tools & Bots", "Verified Guides"],
-    "Runner": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides"],
-    "Closer": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab"],
-    "Inner Circle": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"],
-    "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
+    "Lookout": [
+        topic_name_to_id["Welcome To Scam's Plus - Start Here"],
+        topic_name_to_id["General Chat"],
+        topic_name_to_id["Scammers Warnings"],
+        topic_name_to_id["Announcements"],
+        topic_name_to_id["Con Academy"],
+        topic_name_to_id["Tools & Bots"],
+        topic_name_to_id["Verified Guides"]
+    ],
+    "Runner": [
+        topic_name_to_id["Welcome To Scam's Plus - Start Here"],
+        topic_name_to_id["General Chat"],
+        topic_name_to_id["Scammers Warnings"],
+        topic_name_to_id["Announcements"],
+        topic_name_to_id["Con Academy"],
+        topic_name_to_id["Questions"],
+        topic_name_to_id["Tools & Bots"],
+        topic_name_to_id["Verified Guides"]
+    ],
+    "Closer": [
+        topic_name_to_id["Welcome To Scam's Plus - Start Here"],
+        topic_name_to_id["General Chat"],
+        topic_name_to_id["Scammers Warnings"],
+        topic_name_to_id["Announcements"],
+        topic_name_to_id["Con Academy"],
+        topic_name_to_id["Questions"],
+        topic_name_to_id["Tools & Bots"],
+        topic_name_to_id["Verified Guides"],
+        topic_name_to_id["Verified Vendors / Collabs"],
+        topic_name_to_id["Testing Lab"]
+    ],
+    "Inner Circle": [
+        topic_name_to_id["Welcome To Scam's Plus - Start Here"],
+        topic_name_to_id["General Chat"],
+        topic_name_to_id["Scammers Warnings"],
+        topic_name_to_id["Announcements"],
+        topic_name_to_id["Con Academy"],
+        topic_name_to_id["Questions"],
+        topic_name_to_id["Tools & Bots"],
+        topic_name_to_id["Verified Guides"],
+        topic_name_to_id["Verified Vendors / Collabs"],
+        topic_name_to_id["Testing Lab"],
+        topic_name_to_id["VIP Lounge"]
+    ],
+    "OG Member": [
+        topic_name_to_id["Welcome To Scam's Plus - Start Here"],
+        topic_name_to_id["General Chat"],
+        topic_name_to_id["Scammers Warnings"],
+        topic_name_to_id["Announcements"],
+        topic_name_to_id["Con Academy"],
+        topic_name_to_id["Questions"],
+        topic_name_to_id["Tools & Bots"],
+        topic_name_to_id["Verified Guides"],
+        topic_name_to_id["Verified Vendors / Collabs"],
+        topic_name_to_id["Testing Lab"],
+        topic_name_to_id["VIP Lounge"]
+    ]
 }
 
 # --- Welcome Fallback ---
@@ -173,6 +239,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "check_rank":
         rank = user_ranks.get(user_id, "❌ Unranked")
         await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
+        
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
