@@ -4,7 +4,7 @@ import asyncio
 import logging
 from aiohttp import web
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters, ChatMemberHandler
@@ -318,9 +318,9 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if violation_counts[uid] >= 3:
             try:
                 await context.bot.restrict_chat_member(
-                    chat_id=GROUP_ID,
-                    user_id=uid,
-                    permissions={"can_send_messages": False}
+                chat_id=GROUP_ID,
+                user_id=uid,
+                permissions=ChatPermissions(can_send_messages=False)
                 )
                 await context.bot.send_message(
                     chat_id=uid,
@@ -424,7 +424,6 @@ async def main():
 
     # --- Handlers ---
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
-    app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
