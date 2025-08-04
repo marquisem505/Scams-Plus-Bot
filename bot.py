@@ -200,25 +200,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         create_user_if_not_exists(user_id, query.from_user.username, query.from_user.first_name)
         update_onboarding(user_id, learning_path=choice)
 
-    response_map = {
-        "drops": "🔥 Good choice. Check out the `Verified Guides` and `Con Academy` threads to begin.",
-        "tools": "🛠 You’ll want to hit the `Tools & Bots` thread — we keep all the real builds in there.",
-        "mentorship": "🧑‍🎓 Check the `Con Academy` topic — one of our mentors will reach out to you.",
-        "vip": "🥇 Check the `V.I.P Lounge` topic — you'll learn how to get your rank up to become whitelisted into the lounge.",
-        "questions": "🙋 Go to the `Questions` topic — one of our admins/members will answer any questions you may have.",
-        "vendors": "🔗 Check the `Verified Vendors / Collabs` topic — only verified vendors are allowed.",
-        "unsure": "💡 That's cool too. Scroll through the `Welcome To Scam's Plus - Start Here` thread and lurk a bit before diving in."
-    }
+        response_map = {
+            "drops": "🔥 Good choice. Check out the `Verified Guides` and `Con Academy` threads to begin.",
+            "tools": "🛠 You’ll want to hit the `Tools & Bots` thread — we keep all the real builds in there.",
+            "mentorship": "🧑‍🎓 Check the `Con Academy` topic — one of our mentors will reach out to you.",
+            "vip": "🥇 Check the `V.I.P Lounge` topic — you'll learn how to get your rank up to become whitelisted into the lounge.",
+            "questions": "🙋 Go to the `Questions` topic — one of our admins/members will answer any questions you may have.",
+            "vendors": "🔗 Check the `Verified Vendors / Collabs` topic — only verified vendors are allowed.",
+            "unsure": "💡 That's cool too. Scroll through the `Welcome To Scam's Plus - Start Here` thread and lurk a bit before diving in."
+        }
 
-    await query.message.reply_text(response_map.get(choice, "✅ Let’s continue..."))
-    await query.message.reply_text(
-        "🧠 What’s your current experience level?",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("💳 Beginner", callback_data="exp_beginner")],
-            [InlineKeyboardButton("💻 Intermediate", callback_data="exp_intermediate")],
-            [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
-        ])
-    )
+        await query.message.reply_text(response_map.get(choice, "✅ Let’s continue..."))
+        await query.message.reply_text(
+            "🧠 What’s your current experience level?",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Beginner", callback_data="exp_beginner")],
+                [InlineKeyboardButton("💻 Intermediate", callback_data="exp_intermediate")],
+                [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
+            ])
+        )
 
     elif query.data.startswith("exp_"):
         level = query.data.replace("exp_", "")
