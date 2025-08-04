@@ -255,15 +255,15 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     async def telegram_webhook(request):
-        try:
-            print("📥 Webhook received.")
-            data = await request.json()
-            update = Update.de_json(data, app.bot)
-            await app.process_update(update)
-            return web.Response(text="OK")
-        except Exception as e:
-            print("❌ Webhook error:", str(e))
-            return web.Response(status=500, text=f"Error: {e}")
+    try:
+        print("📥 Webhook received.")
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update) 
+        return web.Response(text="OK")
+    except Exception as e:
+        print("❌ Webhook error:", str(e))
+        return web.Response(status=500, text=f"Error: {e}")
             
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
