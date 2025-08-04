@@ -134,11 +134,12 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
         return
+
     if update.chat_member.new_chat_member.status == "member":
         create_user_if_not_exists(member.id, member.username, member.first_name)
-    if get_user_rank(member.id) is None:
-        set_user_rank(member.id, "Lookout")
-    logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
+        if get_user_rank(member.id) is None:
+            set_user_rank(member.id, "Lookout")
+        logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
 
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
