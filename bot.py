@@ -249,56 +249,55 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Ignore if not from the main group or not in a thread
     if update.message.chat_id != GROUP_ID or update.message.message_thread_id is None:
-    return
+        return
 
     uid = update.effective_user.id
     username = update.effective_user.username or "Unknown"
     topic_id = update.message.message_thread_id
-    user_rank = user_ranks.get(uid, "Lookout")
+    user_rank = user_ranks.get(uid, "Lookout")  # Default to Lookout if unknown
 
-    # Determine allowed topics for this user
     allowed_topics = rank_access_topics.get(user_rank, [])
 
-    # User tried posting in a restricted topic
     if topic_id not in allowed_topics:
-        # Track violations
+        # Count and store violations
         violation_counts[uid] = violation_counts.get(uid, 0) + 1
 
-        # Delete the message
+        # Attempt to delete the message
         try:
             await update.message.delete()
         except Exception as e:
-            logging.warning(f"Failed to delete restricted message from @{username}: {e}")
+            logging.warning(f"❌ Couldn't delete message from @{username}: {e}")
 
-        # Public warning with button
+        # Public warning in the thread
         try:
             await context.bot.send_message(
                 chat_id=GROUP_ID,
                 message_thread_id=topic_id,
-                text=f"⚠️ @{username}, this topic is restricted to higher ranks.",
+                text=f"⚠️ @{username}, you're not allowed to post in this topic at your current rank ({user_rank}).",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
                 ])
             )
         except Exception as e:
-            logging.warning(f"Failed to warn @{username} in thread: {e}")
+            logging.warning(f"⚠️ Failed to warn user in group thread: {e}")
 
         # Private DM
         try:
             await context.bot.send_message(
                 chat_id=uid,
                 text=(
-                    f"🚫 You tried to post in a restricted topic: `{topic_id}`.\n"
+                    f"🚫 You tried posting in a restricted topic (ID: `{topic_id}`).\n"
                     f"Your current rank is: *{user_rank}*\n\n"
-                    f"If you believe this is a mistake, use /promoteme in the group to request a rank change."
+                    f"Use /promoteme in the group to request a rank promotion if needed."
                 ),
                 parse_mode="Markdown"
             )
         except Exception as e:
-            logging.warning(f"Could not DM user @{username}: {e}")
+            logging.warning(f"❌ Failed to DM user @{username}: {e}")
 
-        # Optional: Mute after 3+ violations
+        # Optional mute if too many violations
         if violation_counts[uid] >= 3:
             try:
                 await context.bot.restrict_chat_member(
@@ -308,10 +307,10 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 await context.bot.send_message(
                     chat_id=uid,
-                    text="🔇 You've been muted for repeated topic violations. Contact an admin to appeal."
+                    text="🔇 You’ve been muted for repeated violations. Contact an admin to appeal."
                 )
             except Exception as e:
-                logging.warning(f"Failed to mute user @{username}: {e}")
+                logging.warning(f"🚫 Could not mute @{username}: {e}")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
