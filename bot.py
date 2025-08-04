@@ -254,7 +254,7 @@ async def healthcheck(request):
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
-async def telegram_webhook(request):
+    async def telegram_webhook(request):
         try:
             print("📥 Webhook received.")
             data = await request.json()
