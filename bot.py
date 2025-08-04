@@ -44,6 +44,7 @@ topic_name_to_id = {
     "VIP Lounge": 2402
 }
 
+# --- Topic Mapping ---
 rank_access_topics = {
     "Lookout": [
         topic_name_to_id["Welcome To Scam's Plus - Start Here"],
@@ -124,6 +125,10 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if update.chat_member.chat.id != GROUP_ID:
         return
     if update.chat_member.new_chat_member.status == "member":
+        if member.id not in user_ranks:
+            user_ranks[member.id] = "Lookout"
+            logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
+
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
             [InlineKeyboardButton("📚 Group Rules", url="https://t.me/ScamsClubRules")],
