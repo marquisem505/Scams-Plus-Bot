@@ -253,18 +253,19 @@ async def healthcheck(request):
 # --- MAIN ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
-    
+
     async def telegram_webhook(request):
-    try:
-        print("📥 Webhook received.")
-        data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.process_update(update)
-        return web.Response(text="OK")
-    except Exception as e:
-        print("❌ Webhook error:", str(e))
-        return web.Response(status=500, text=f"Error: {e}")
-            
+        try:
+            print("📥 Webhook received.")
+            data = await request.json()
+            update = Update.de_json(data, app.bot)
+            await app.process_update(update)
+            return web.Response(text="OK")
+        except Exception as e:
+            print("❌ Webhook error:", str(e))
+            return web.Response(status=500, text=f"Error: {e}")
+
+    # Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
@@ -278,6 +279,7 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
 
+    # Webhook server
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
