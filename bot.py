@@ -9,6 +9,14 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
+from db import (
+    init_db,
+    set_user_rank,
+    get_user_rank,
+    create_user_if_not_exists,
+    update_onboarding,
+    get_onboarding_summary
+)
 
 # --- Load ENV ---
 load_dotenv()
@@ -127,9 +135,10 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if update.chat_member.chat.id != GROUP_ID:
         return
     if update.chat_member.new_chat_member.status == "member":
-        if member.id not in user_ranks:
-            user_ranks[member.id] = "Lookout"
-            logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
+        create_user_if_not_exists(member.id, member.username, member.first_name)
+    if get_user_rank(member.id) is None:
+    set_user_rank(member.id, "Lookout")
+    logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
 
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
@@ -186,37 +195,33 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("👤 DM @ScamsClub_Store for help.")
 
     elif query.data.startswith("learn_"):
-        choice = query.data.replace("learn_", "")
-        onboarding_memory[user_id] = {
-            "username": query.from_user.username,
-            "first_name": query.from_user.first_name,
-            "learning_path": choice
-        }
+    choice = query.data.replace("learn_", "")
+    create_user_if_not_exists(user_id, query.from_user.username, query.from_user.first_name)
+    update_onboarding(user_id, learning_path=choice)
 
-        response_map = {
-            "drops": "🔥 Good choice. Check out the `Verified Guides` and `Con Academy` threads to begin.",
-            "tools": "🛠 You’ll want to hit the `Tools & Bots` thread — we keep all the real builds in there.",
-            "mentorship": "🧑‍🎓 Check the `Con Academy` topic — one of our mentors will reach out to you.",
-            "vip": "🥇 Check the `V.I.P Lounge` topic — you'll learn how to get your rank up to become whitelisted into the lounge.",
-            "questions": "🙋 Go to the `Questions` topic — one of our admins/members will answer any questions you may have.",
-            "vendors": "🔗 Check the `Verified Vendors / Collabs` topic — only verified vendors are allowed.",
-            "unsure": "💡 That's cool too. Scroll through the `Welcome To Scam's Plus - Start Here` thread and lurk a bit before diving in."
-        }
+    response_map = {
+        "drops": "🔥 Good choice. Check out the `Verified Guides` and `Con Academy` threads to begin.",
+        "tools": "🛠 You’ll want to hit the `Tools & Bots` thread — we keep all the real builds in there.",
+        "mentorship": "🧑‍🎓 Check the `Con Academy` topic — one of our mentors will reach out to you.",
+        "vip": "🥇 Check the `V.I.P Lounge` topic — you'll learn how to get your rank up to become whitelisted into the lounge.",
+        "questions": "🙋 Go to the `Questions` topic — one of our admins/members will answer any questions you may have.",
+        "vendors": "🔗 Check the `Verified Vendors / Collabs` topic — only verified vendors are allowed.",
+        "unsure": "💡 That's cool too. Scroll through the `Welcome To Scam's Plus - Start Here` thread and lurk a bit before diving in."
+    }
 
-        await query.message.reply_text(response_map.get(choice, "✅ Let’s continue..."))
-
-        await query.message.reply_text(
-            "🧠 What’s your current experience level?",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 Beginner", callback_data="exp_beginner")],
-                [InlineKeyboardButton("💻 Intermediate", callback_data="exp_intermediate")],
-                [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
-            ])
-        )
+    await query.message.reply_text(response_map.get(choice, "✅ Let’s continue..."))
+    await query.message.reply_text(
+        "🧠 What’s your current experience level?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 Beginner", callback_data="exp_beginner")],
+            [InlineKeyboardButton("💻 Intermediate", callback_data="exp_intermediate")],
+            [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
+        ])
+    )
 
     elif query.data.startswith("exp_"):
         level = query.data.replace("exp_", "")
-        onboarding_memory[user_id]["experience"] = level
+        update_onboarding(user_id, experience=level)
 
         await query.message.reply_text(
             "🔍 Any specific drops, tools, or methods you're looking for?",
@@ -231,8 +236,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data.startswith("target_"):
         focus = query.data.replace("target_", "")
-        onboarding_memory[user_id]["interest"] = focus
-        summary = onboarding_memory[user_id]
+        update_onboarding(user_id, interest=focus)
+        summary = get_onboarding_summary(user_id)
         await query.message.reply_text(
             f"✅ All set!\n\n"
             f"👤 {summary['first_name']} (@{summary['username']})\n"
@@ -256,7 +261,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     username = update.effective_user.username or "Unknown"
     topic_id = update.message.message_thread_id
-    user_rank = user_ranks.get(uid, "Lookout")  # Default to Lookout if unknown
+    user_rank = get_user_rank(uid) or "Lookout"  # Default to Lookout if unknown
 
     allowed_topics = rank_access_topics.get(user_rank, [])
 
@@ -342,7 +347,7 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = next((uid for uid, data in onboarding_memory.items() if data.get("username") == username), None)
 
     if uid:
-        user_ranks[uid] = rank
+        set_user_rank(uid, rank)
         await update.message.reply_text(f"✅ Assigned rank `{rank}` to @{username}.", parse_mode="Markdown")
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found in onboarding memory.")
@@ -366,7 +371,7 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- My Rank ---
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
-    rank = user_ranks.get(uid, "❌ Unranked")
+    rank = get_user_rank(uid) or "❌ Unranked"
     await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 
 # --- Logs ---
@@ -390,6 +395,7 @@ async def healthcheck(request):
 
 
 # --- Main ---
+init_db()
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
