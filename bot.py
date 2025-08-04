@@ -70,6 +70,24 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode="HTML"
         )
 
+# --- Start ---
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type in ["group", "supergroup"]:
+        await update.message.reply_text("👋 DM me privately to access onboarding, rank tools, and more.")
+        return
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📘 Restart Onboarding", callback_data="start_onboarding")],
+        [InlineKeyboardButton("🧠 Start Here Guide", url="https://t.me/c/2286707356/2458")], 
+        [InlineKeyboardButton("👤 My Rank", callback_data="check_rank")],
+        [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
+    ])
+
+    await update.message.reply_text(
+        "👋 Welcome to Scam’s Plus.\n\nThis bot helps with onboarding, ranks, and navigating the group.\n\nUse the buttons below to get started 👇",
+        reply_markup=keyboard
+    )
+    
 # --- Buttons ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -174,6 +192,12 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
         )
 
+# --- Check Rank ---
+elif query.data == "check_rank":
+    uid = query.from_user.id
+    rank = user_ranks.get(uid, "❌ Unranked")
+    await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
+
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -181,7 +205,7 @@ async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• What you’ve done or contributed\n"
         "• Screenshots or drop results (if any)\n"
         "• Your desired rank\n\n"
-        "✅ After replying, an admin will be notified automatically."
+        "✅ After replying, an admin will be notified."
     )
 
 # --- Forward Promote Me Replies ---
@@ -279,6 +303,7 @@ async def main():
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
+    app.add_handler(CommandHandler("start", start_command))
 
     # --- Webhook Server ---
     web_app = web.Application()
