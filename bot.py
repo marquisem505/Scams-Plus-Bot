@@ -320,7 +320,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.restrict_chat_member(
                 chat_id=GROUP_ID,
                 user_id=uid,
-                permissions=ChatPermissions(can_send_messages=False)
+                permissions=ChatPermissions(can_send_messages=False
                 )
                 await context.bot.send_message(
                     chat_id=uid,
