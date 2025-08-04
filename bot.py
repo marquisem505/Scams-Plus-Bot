@@ -1,3 +1,4 @@
+# --- Imports ---
 import os
 import asyncio
 import logging
@@ -9,7 +10,7 @@ from telegram.ext import (
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
 
-# Load environment variables
+# --- Load ENV ---
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
@@ -17,7 +18,7 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 
-# Logging config
+# --- Logging ---
 logging.basicConfig(
     filename='scamsclub_bot.log',
     filemode='a',
@@ -25,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# Memory
+# --- Memory ---
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
 
@@ -37,8 +38,7 @@ rank_access_topics = {
     "OG Member": ["Welcome To Scam's Plus - Start Here", "General Chat", "Scammers Warnings", "Announcements", "Con Academy", "Questions",  "Tools & Bots", "Verified Guides", "Verified Vendors / Collabs", "Testing Lab", "VIP Lounge"]
 }
 
-# --- Handlers ---
-
+# --- Welcome Fallback ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = InlineKeyboardMarkup([
@@ -52,7 +52,7 @@ async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-
+# --- Welcome ---
 async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
@@ -70,6 +70,7 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode="HTML"
         )
 
+# --- Buttons ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -150,7 +151,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-# Topic Guard
+# --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
         return
@@ -173,7 +174,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
         )
 
-# /promoteme
+# --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📤 To request a rank promotion, reply here with:\n\n"
@@ -183,7 +184,7 @@ async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ After replying, an admin will be notified automatically."
     )
 
-# Forward promoteme replies
+# --- Forward Promote Me Replies ---
 async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.reply_to_message and "rank promotion" in update.message.reply_to_message.text:
         await context.bot.send_message(
@@ -191,7 +192,7 @@ async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"📬 Rank request from @{update.effective_user.username}:\n\n{update.message.text}"
         )
 
-# /assignrank
+# --- Assign Rank ---
 async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("❌ Not authorized.")
@@ -208,7 +209,7 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found in onboarding memory.")
 
-# /demote
+# --- Demote Rank ---
 async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("❌ Not authorized.")
@@ -224,13 +225,13 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found or unranked.")
 
-# /myrank
+# --- My Rank ---
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     rank = user_ranks.get(uid, "❌ Unranked")
     await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 
-# /logs
+# --- Logs ---
 async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
@@ -241,16 +242,16 @@ async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except FileNotFoundError:
         await update.message.reply_text("⚠️ No log file found.")
 
-# /status
+# --- Status ---
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot is online and running smoothly.")
 
-# Webhook healthcheck
+# --- Webhook Health Check ---
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
 
-# --- MAIN ---
+# --- Main ---
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -265,7 +266,7 @@ async def main():
             print("❌ Webhook error:", str(e))
             return web.Response(status=500, text=f"Error: {e}")
 
-    # Handlers
+    # --- Handlers ---
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
@@ -279,7 +280,7 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
 
-    # Webhook server
+    # --- Webhook Server ---
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
@@ -295,5 +296,6 @@ async def main():
     await app.start()
     await asyncio.Event().wait()
 
+# --- Run ---
 if __name__ == "__main__":
     asyncio.run(main())
