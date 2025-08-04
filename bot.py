@@ -249,8 +249,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
-        return
+    if update.message.chat_id != GROUP_ID or update.message.message_thread_id is None:
+    return
 
     uid = update.effective_user.id
     username = update.effective_user.username or "Unknown"
