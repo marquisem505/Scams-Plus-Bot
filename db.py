@@ -77,3 +77,12 @@ def get_onboarding_summary(user_id):
             "interest": row[4]
         }
     return {}
+    
+# --- Get User ID by Username ---
+def get_user_id_by_username(username):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT id FROM users WHERE username = ?', (username,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else None
