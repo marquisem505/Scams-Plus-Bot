@@ -258,11 +258,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_rank = user_ranks.get(uid, "Lookout")
 
     # Determine allowed topics for this user
-    allowed_topics = []
-    for rank, topics in rank_access_topics.items():
-        allowed_topics.extend(topics)
-        if rank == user_rank:
-            break
+    allowed_topics = rank_access_topics.get(user_rank, [])
 
     # User tried posting in a restricted topic
     if topic_id not in allowed_topics:
@@ -414,7 +410,7 @@ async def main():
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.StatusUpdate.ALL, topic_guard))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
 
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
