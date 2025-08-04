@@ -29,7 +29,9 @@ logging.basicConfig(
 # --- Memory ---
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
+violation_counts = {}  # user_id: int
 
+# --- Topic Mapping ---
 topic_name_to_id = {
     "Welcome To Scam's Plus - Start Here": 2458,
     "General Chat": 2401,
@@ -44,7 +46,7 @@ topic_name_to_id = {
     "VIP Lounge": 2402
 }
 
-# --- Topic Mapping ---
+# --- Rank Access ---
 rank_access_topics = {
     "Lookout": [
         topic_name_to_id["Welcome To Scam's Plus - Start Here"],
@@ -247,33 +249,73 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message or message.chat_id != GROUP_ID or message.message_thread_id is None:
+    if update.message.chat_id != GROUP_ID or not update.message.is_topic_message:
         return
 
-    uid = message.from_user.id
-    username = message.from_user.username or "Unknown"
+    uid = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    topic_id = update.message.message_thread_id
     user_rank = user_ranks.get(uid, "Lookout")
-    topic_id = message.message_thread_id
 
-    # Build cumulative allowed topic IDs for the user's rank
+    # Determine allowed topics for this user
     allowed_topics = []
-    for rank, topic_ids in rank_access_topics.items():
-        allowed_topics += topic_ids
+    for rank, topics in rank_access_topics.items():
+        allowed_topics.extend(topics)
         if rank == user_rank:
             break
 
+    # User tried posting in a restricted topic
     if topic_id not in allowed_topics:
+        # Track violations
+        violation_counts[uid] = violation_counts.get(uid, 0) + 1
+
+        # Delete the message
         try:
-            await message.delete()
+            await update.message.delete()
+        except Exception as e:
+            logging.warning(f"Failed to delete restricted message from @{username}: {e}")
+
+        # Public warning with button
+        try:
             await context.bot.send_message(
                 chat_id=GROUP_ID,
                 message_thread_id=topic_id,
-                text=f"⚠️ @{username}, this topic is restricted to higher ranks.\nUse /promoteme to request access."
+                text=f"⚠️ @{username}, this topic is restricted to higher ranks.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
+                ])
             )
-            logging.info(f"[GUARD] Deleted message from @{username} in unauthorized topic {topic_id} (Rank: {user_rank})")
         except Exception as e:
-            logging.error(f"[GUARD ERROR] Could not delete or warn: {e}")
+            logging.warning(f"Failed to warn @{username} in thread: {e}")
+
+        # Private DM
+        try:
+            await context.bot.send_message(
+                chat_id=uid,
+                text=(
+                    f"🚫 You tried to post in a restricted topic: `{topic_id}`.\n"
+                    f"Your current rank is: *{user_rank}*\n\n"
+                    f"If you believe this is a mistake, use /promoteme in the group to request a rank change."
+                ),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logging.warning(f"Could not DM user @{username}: {e}")
+
+        # Optional: Mute after 3+ violations
+        if violation_counts[uid] >= 3:
+            try:
+                await context.bot.restrict_chat_member(
+                    chat_id=GROUP_ID,
+                    user_id=uid,
+                    permissions={"can_send_messages": False}
+                )
+                await context.bot.send_message(
+                    chat_id=uid,
+                    text="🔇 You've been muted for repeated topic violations. Contact an admin to appeal."
+                )
+            except Exception as e:
+                logging.warning(f"Failed to mute user @{username}: {e}")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
