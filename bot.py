@@ -9,14 +9,7 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
-from db import (
-    init_db,
-    set_user_rank,
-    get_user_rank,
-    create_user_if_not_exists,
-    update_onboarding,
-    get_onboarding_summary
-)
+from db import create_user_if_not_exists, set_user_rank, get_user_id_by_username
 
 # --- Load ENV ---
 load_dotenv()
@@ -129,6 +122,16 @@ async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=keyboard,
             parse_mode="HTML"
         )
+
+# --- Auto Rank Members On Join ---
+async def handle_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    member = update.chat_member.new_chat_member
+    if member.status == "member":
+        user = member.user
+        create_user_if_not_exists(user.id, user.username, user.first_name)
+        set_user_rank(user.id, "Lookout")
+        await context.bot.send_message(chat_id=user.id, text="Welcome to Scam's Plus! You've been assigned the rank: Lookout.")
+        
 # --- Welcome ---
 async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.chat_member.new_chat_member.user
@@ -250,7 +253,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 # --- Check Rank --
     elif query.data == "check_rank":
-        rank = user_ranks.get(user_id, "❌ Unranked")
+        rank = get_user_rank(user_id) or "❌ Unranked"
         await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
         
 # --- Topic Guard ---
@@ -337,6 +340,7 @@ async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # --- Assign Rank ---
+# --- Assign Rank ---
 async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return await update.message.reply_text("❌ Not authorized.")
@@ -345,13 +349,13 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     username = context.args[0].lstrip('@')
     rank = context.args[1].capitalize()
-    uid = next((uid for uid, data in onboarding_memory.items() if data.get("username") == username), None)
+    uid = get_user_id_by_username(username)
 
     if uid:
         set_user_rank(uid, rank)
         await update.message.reply_text(f"✅ Assigned rank `{rank}` to @{username}.", parse_mode="Markdown")
     else:
-        await update.message.reply_text(f"⚠️ User @{username} not found in onboarding memory.")
+        await update.message.reply_text(f"⚠️ User @{username} not found in database.")
 
 # --- Demote Rank ---
 async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -361,13 +365,13 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("Usage: /demote <@username>")
 
     username = context.args[0].lstrip('@')
-    uid = next((uid for uid, data in onboarding_memory.items() if data.get("username") == username), None)
+    uid = get_user_id_by_username(username)
 
-    if uid and uid in user_ranks:
-        old_rank = user_ranks.pop(uid)
-        await update.message.reply_text(f"⚠️ @{username} was demoted from `{old_rank}`.", parse_mode="Markdown")
+    if uid:
+        set_user_rank(uid, "Lookout")
+        await update.message.reply_text(f"⚠️ @{username} was demoted to `Lookout`.", parse_mode="Markdown")
     else:
-        await update.message.reply_text(f"⚠️ User @{username} not found or unranked.")
+        await update.message.reply_text(f"⚠️ User @{username} not found in database.")
 
 # --- My Rank ---
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -413,6 +417,7 @@ async def main():
     # --- Handlers ---
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
