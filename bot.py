@@ -108,6 +108,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
 
+# --- Elifs ---
     elif query.data == "help":
         await query.message.reply_text("👤 DM @ScamsClub_Store for help.")
 
@@ -134,9 +135,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(
             "🧠 What’s your current experience level?",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🟢 Beginner", callback_data="exp_beginner")],
-                [InlineKeyboardButton("🟡 Intermediate", callback_data="exp_intermediate")],
-                [InlineKeyboardButton("🔴 Advanced", callback_data="exp_advanced")]
+                [InlineKeyboardButton("💳 Beginner", callback_data="exp_beginner")],
+                [InlineKeyboardButton("💻 Intermediate", callback_data="exp_intermediate")],
+                [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
             ])
         )
 
@@ -186,14 +187,17 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if rank == user_rank:
             break
 
-    topic_name = update.message.message_thread_title or ""
-    if topic_name not in allowed_topics:
-        await update.message.delete()
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            message_thread_id=update.message.message_thread_id,
-            text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
-        )
+    topic_id = update.message.message_thread_id
+    if topic_id not in allowed_topics:
+        try:
+            await update.message.delete()
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                message_thread_id=topic_id,
+                text=f"⚠️ @{update.effective_user.username}, this topic is restricted to higher ranks.\nUse `/promoteme` if you think you’re ready."
+            )
+        except Exception as e:
+            logging.error(f"Failed to delete or warn: {e}")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
