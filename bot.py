@@ -9,7 +9,15 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters, ChatMemberHandler
 )
-from db import create_user_if_not_exists, set_user_rank, get_user_id_by_username
+from db import (
+    create_user_if_not_exists,
+    set_user_rank,
+    get_user_id_by_username,
+    get_user_rank,
+    update_onboarding,
+    get_onboarding_summary,
+    init_db   # ← Add this line
+)
 
 # --- Load ENV ---
 load_dotenv()
