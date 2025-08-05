@@ -26,7 +26,7 @@ GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
-ADMIN_PASSWORD = "z8o9eq4hMi"
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # --- Logging ---
 logging.basicConfig(
@@ -119,51 +119,37 @@ rank_access_topics = {
 }
 
 # --- Admin Panel ---
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat_type = update.effective_chat.type
-
-    if chat_type in ["group", "supergroup"]:
-        if user_id != ADMIN_ID:
-            await update.message.reply_text("🚫 You are not authorized.")
-            return
-
-        return await show_admin_panel(update)
-
-    # --- In DM ---
-    if user_id in logged_in_admins:
-        return await show_admin_panel(update)
-    else:
-        await update.message.reply_text("🔐 Please enter the admin password:")
-        context.user_data["awaiting_admin_password"] = True
-
 async def admin_password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
 
     if user_id != ADMIN_ID:
-        return  # ignore if not the admin
+        return  # Ignore all non-admins
 
-    if text == ADMIN_PASSWORD:
-        await update.message.reply_text("✅ Admin access granted. Use /admin to open the panel.")
-        context.user_data["admin_authenticated"] = True
-    else:
-        await update.message.reply_text("❌ Incorrect password. Try again.")
+    if context.user_data.get("awaiting_admin_password"):
+        if text == ADMIN_PASSWORD:
+            logged_in_admins.add(user_id)
+            context.user_data["awaiting_admin_password"] = False
+            context.user_data["admin_authenticated"] = True
 
-    keyboard = [
-        [InlineKeyboardButton("📊 View Stats", callback_data="admin_view_stats")],
-        [InlineKeyboardButton("📤 Export Users", callback_data="admin_export_users")],
-        [InlineKeyboardButton("📥 Import Users", callback_data="admin_import_users")],
-        [InlineKeyboardButton("🧑‍💼 Assign Rank", callback_data="admin_assign_rank")],
-        [InlineKeyboardButton("📨 Review Promotion Requests", callback_data="admin_review_promotions")],
-        [InlineKeyboardButton("🧹 Reset Violations", callback_data="admin_reset_violations")],
-        [InlineKeyboardButton("⛔ Mute User", callback_data="admin_mute_user")],
-        [InlineKeyboardButton("🔄 Reload Configs", callback_data="admin_reload_configs")],
-    ]
+            await update.message.reply_text("✅ Admin access granted. Use /admin to open the panel.")
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
+            keyboard = [
+                [InlineKeyboardButton("📊 View Stats", callback_data="admin_view_stats")],
+                [InlineKeyboardButton("📤 Export Users", callback_data="admin_export_users")],
+                [InlineKeyboardButton("📥 Import Users", callback_data="admin_import_users")],
+                [InlineKeyboardButton("🧑‍💼 Assign Rank", callback_data="admin_assign_rank")],
+                [InlineKeyboardButton("📨 Review Promotion Requests", callback_data="admin_review_promotions")],
+                [InlineKeyboardButton("🧹 Reset Violations", callback_data="admin_reset_violations")],
+                [InlineKeyboardButton("⛔ Mute User", callback_data="admin_mute_user")],
+                [InlineKeyboardButton("🔄 Reload Configs", callback_data="admin_reload_configs")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text("👑 *Admin Panel* 👑", reply_markup=reply_markup, parse_mode="Markdown")
+            await update.message.reply_text("👑 *Admin Panel* 👑", reply_markup=reply_markup, parse_mode="Markdown")
+
+        else:
+            await update.message.reply_text("❌ Incorrect password. Try again.")
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
