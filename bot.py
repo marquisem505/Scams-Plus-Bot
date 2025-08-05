@@ -39,6 +39,7 @@ logging.basicConfig(
 onboarding_memory = {}   # user_id: dict
 user_ranks = {}          # user_id: rank
 violation_counts = {}  # user_id: int
+logged_in_admins = set()  # Stores Telegram user_ids who have logged in as admin
 
 # --- Topic Mapping ---
 topic_name_to_id = {
@@ -118,9 +119,22 @@ rank_access_topics = {
 
 # --- Admin Panel ---
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("🚫 You are not authorized to access this panel.")
-        return
+    user_id = update.effective_user.id
+    chat_type = update.effective_chat.type
+
+    if chat_type in ["group", "supergroup"]:
+        if user_id != ADMIN_ID:
+            await update.message.reply_text("🚫 You are not authorized.")
+            return
+
+        return await show_admin_panel(update)
+
+    # --- In DM ---
+    if user_id in logged_in_admins:
+        return await show_admin_panel(update)
+    else:
+        await update.message.reply_text("🔐 Please enter the admin password:")
+        context.user_data["awaiting_admin_password"] = True
 
     keyboard = [
         [InlineKeyboardButton("📊 View Stats", callback_data="admin_view_stats")],
@@ -464,22 +478,23 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
-
 # --- Main Debugging ---
 
 async def main():
-    print("🧪 Starting main()...")  # Debug
+    print("🧪 Starting main()...")
+
+    # --- Initialize App ---
     app = Application.builder().token(BOT_TOKEN).build()
-    
-    # Add the bot to the DB
+
+    # --- Add bot to DB ---
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
     print(f"✅ Bot user {me.username} added to DB with ID {me.id}")
 
-    # --- Telegram Webhook ---
+    # --- Healthcheck endpoint ---
     async def telegram_webhook(request):
         try:
-            print("📥 Webhook received.")  # Debug
+            print("📥 Webhook received.")
             data = await request.json()
             update = Update.de_json(data, app.bot)
             await app.process_update(update)
@@ -488,50 +503,12 @@ async def main():
             print("❌ Webhook error:", str(e))
             return web.Response(status=500, text=f"Error: {e}")
 
-    print("🔧 Adding handlers...")  # Debug
-    
-    # --- Handlers ---
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
-    app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
-    app.add_handler(CommandHandler("status", status_command))
-    app.add_handler(CommandHandler("assignrank", assign_rank))
-    app.add_handler(CommandHandler("demote", demote))
-    app.add_handler(CommandHandler("myrank", myrank))
-    app.add_handler(CommandHandler("promoteme", promoteme))
-    app.add_handler(CommandHandler("logs", view_logs))
-    app.add_handler(CommandHandler("start", start_command))
+    async def healthcheck(request):
+        return web.Response(text="✅ Bot is running.")
 
-    print("🌐 Setting webhook...")  # Debug
-    await app.bot.set_webhook(WEBHOOK_URL)
+    print("🔧 Adding handlers...")
 
-    print("🚦 Initializing app...")  # Debug
-    await app.initialize()
-
-    print("🔌 Starting web server...")  # Debug
-    web_app = web.Application()
-    web_app.router.add_get("/status", healthcheck)
-    web_app.router.add_post("/telegram-webhook", telegram_webhook)
-
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-
-    print(f"🚀 Bot running on port {PORT} — Webhook set to {WEBHOOK_URL}")
-
-    await app.start()
-    await asyncio.Event().wait()
-
-    # --- Main Handlers ---
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
-    app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
-
+    # --- Command Handlers ---
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
     app.add_handler(CommandHandler("demote", demote))
@@ -541,13 +518,27 @@ async def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("admin", admin_panel))
 
-    # --- Webhook Server ---
+    # --- Message + Callback Handlers ---
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
+    app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+
+    # Optional: Catch DM passwords
+    app.add_handler(MessageHandler(filters.TEXT & filters.PRIVATE, admin_password_handler))
+
+    print("🌐 Setting webhook to:", WEBHOOK_URL)
+    await app.bot.set_webhook(WEBHOOK_URL)
+
+    print("🚦 Initializing application...")
+    await app.initialize()
+
+    print("🔌 Starting web server...")
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
-    await app.bot.set_webhook(WEBHOOK_URL)
-    await app.initialize()
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
@@ -557,7 +548,8 @@ async def main():
     await app.start()
     await asyncio.Event().wait()
 
-# --- Run ---
+
+# --- Entry Point ---
 if __name__ == "__main__":
     from db import init_db
     init_db()
