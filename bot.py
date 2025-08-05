@@ -122,7 +122,6 @@ rank_access_topics = {
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_type = update.effective_chat.type
-    await send_admin_panel(update)
 
     # --- In group ---
     if chat_type in ["group", "supergroup"]:
