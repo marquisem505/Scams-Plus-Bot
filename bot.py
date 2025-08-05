@@ -491,60 +491,57 @@ async def healthcheck(request):
 
 # --- Main Debugging ---
 
+
+# --- Main ---
 async def main():
-    print("🧪 Starting main()...")
+    from handlers import (
+        start_command, admin_panel, logout_command, status_command,
+        assign_rank, demote, myrank, promoteme, reply_forwarder, view_logs,
+        new_chat_member_message, handle_join, button_handler,
+        chat_member_update, topic_guard, admin_password_handler,
+        admin_callback_handler
+    )
 
-    # --- Initialize App ---
     app = Application.builder().token(BOT_TOKEN).build()
-
-    # --- Add bot to DB ---
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
-    print(f"✅ Bot user {me.username} added to DB with ID {me.id}")
 
-    # --- Healthcheck endpoint ---
-    async def telegram_webhook(request):
-        try:
-            print("📥 Webhook received.")
-            data = await request.json()
-            update = Update.de_json(data, app.bot)
-            await app.process_update(update)
-            return web.Response(text="OK")
-        except Exception as e:
-            print("❌ Webhook error:", str(e))
-            return web.Response(status=500, text=f"Error: {e}")
-
-    async def healthcheck(request):
-        return web.Response(text="✅ Bot is running.")
-
-    print("🔧 Adding handlers...")
-
-    # --- Command Handlers ---
+    # --- Handlers ---
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("admin", admin_panel))
+    app.add_handler(CommandHandler("logout", logout_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("assignrank", assign_rank))
     app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("admin", admin_panel))
-    app.add_handler(CommandHandler("logout", logout_command))
 
-    # --- Message + Callback Handlers ---
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, admin_password_handler))
+    app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, reply_forwarder))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(CallbackQueryHandler(admin_callback_handler))
 
-    print("🌐 Setting webhook to:", WEBHOOK_URL)
+    # --- Webhook Setup ---
+    async def telegram_webhook(request):
+        try:
+            data = await request.json()
+            update = Update.de_json(data, app.bot)
+            await app.process_update(update)
+            return web.Response(text="OK")
+        except Exception as e:
+            logging.error("Webhook Error: " + str(e))
+            return web.Response(status=500, text=f"Error: {e}")
+
+    async def healthcheck(request):
+        return web.Response(text="✅ Bot is alive!", status=200)
+
     await app.bot.set_webhook(WEBHOOK_URL)
-
-    print("🚦 Initializing application...")
     await app.initialize()
 
-    print("🔌 Starting web server...")
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
@@ -554,13 +551,10 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-    print(f"🚀 Bot running on port {PORT} — Webhook set to {WEBHOOK_URL}")
     await app.start()
     await asyncio.Event().wait()
 
-
-# --- Entry Point ---
 if __name__ == "__main__":
-    from db import init_db
     init_db()
     asyncio.run(main())
+
