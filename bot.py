@@ -407,13 +407,15 @@ async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
 
-# --- Main ---
+# --- Main Debugging ---
 async def main():
+    print("🧪 Starting main()...")  # Debug
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # --- Telegram Webhook ---
     async def telegram_webhook(request):
         try:
-            print("📥 Webhook received.")
+            print("📥 Webhook received.")  # Debug
             data = await request.json()
             update = Update.de_json(data, app.bot)
             await app.process_update(update)
@@ -422,7 +424,43 @@ async def main():
             print("❌ Webhook error:", str(e))
             return web.Response(status=500, text=f"Error: {e}")
 
+    print("🔧 Adding handlers...")  # Debug
     # --- Handlers ---
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
+    app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, reply_forwarder))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("assignrank", assign_rank))
+    app.add_handler(CommandHandler("demote", demote))
+    app.add_handler(CommandHandler("myrank", myrank))
+    app.add_handler(CommandHandler("promoteme", promoteme))
+    app.add_handler(CommandHandler("logs", view_logs))
+    app.add_handler(CommandHandler("start", start_command))
+
+    print("🌐 Setting webhook...")  # Debug
+    await app.bot.set_webhook(WEBHOOK_URL)
+
+    print("🚦 Initializing app...")  # Debug
+    await app.initialize()
+
+    print("🔌 Starting web server...")  # Debug
+    web_app = web.Application()
+    web_app.router.add_get("/status", healthcheck)
+    web_app.router.add_post("/telegram-webhook", telegram_webhook)
+
+    runner = web.AppRunner(web_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
+    print(f"🚀 Bot running on port {PORT} — Webhook set to {WEBHOOK_URL}")
+
+    await app.start()
+    await asyncio.Event().wait()
+
+    # --- Main Handlers ---
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(button_handler))
