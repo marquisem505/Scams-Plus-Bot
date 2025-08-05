@@ -3,7 +3,7 @@
 import os
 from telegram import Update
 from telegram.ext import ContextTypes
-from constants import ADMIN_ID
+from utils.constants import ADMIN_ID
 
 # --- Logs ---
 async def view_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -3,7 +3,7 @@
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
 from db import set_user_rank, get_user_rank, get_user_id_by_username
-from constants import ADMIN_ID, GROUP_ID
+from utils.constants import ADMIN_ID, GROUP_ID
 from handlers.auth import logged_in_admins
 
 # --- Memory ---

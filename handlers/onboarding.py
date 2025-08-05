@@ -1,16 +1,20 @@
-# handlers/onboarding.py
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMemberUpdated
 from telegram.ext import ContextTypes
-from db import create_user_if_not_exists, update_onboarding
-from constants import GROUP_ID
+from db import create_user_if_not_exists, update_onboarding, get_user_rank, set_user_rank, get_onboarding_summary
+from utils.constants import GROUP_ID
+import logging
 
 onboarding_memory = {}
-        
-# --- Welcome ---
-async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+# --- Member Join Handler (via ChatMemberHandler) ---
+async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.chat_member:
+        return  # Exit early if chat_member is None
+
     member = update.chat_member.new_chat_member.user
-    if update.chat_member.chat.id != GROUP_ID:
+    chat = update.chat_member.chat
+
+    if not chat or chat.id != GROUP_ID:
         return
 
     if update.chat_member.new_chat_member.status == "member":
@@ -25,69 +29,89 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             [InlineKeyboardButton("❓ Need Help?", callback_data="help")]
         ])
         await context.bot.send_message(
-            chat_id=GROUP_ID,
-            text=f"👋 Welcome {member.mention_html()} to Scam’s Plus!\n\nPress a button below to get started 👇",
+            chat_id=chat.id,
+            text=f"👋 Welcome {member.mention_html()} to Scam’s Plus!\n\nPress a button below to get started 👇",  # type: ignore
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-# --- Welcome Fallback ---
+
+# --- Welcome Fallback (NEW_CHAT_MEMBERS) ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for member in update.message.new_chat_members:
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
-            [InlineKeyboardButton("📚 Group Rules", url="https://t.me/ScamsClubRules")],
-            [InlineKeyboardButton("❓ Need Help?", callback_data="help")]
-        ])
-        await context.bot.send_message(
+    if update.message and update.message.new_chat_members:
+        for member in update.message.new_chat_members:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📘 Start Onboarding", callback_data="start_onboarding")],
+                [InlineKeyboardButton("📚 Group Rules", url="https://t.me/ScamsClubRules")],
+                [InlineKeyboardButton("❓ Need Help?", callback_data="help")]
+            ])
+        for member in update.message.new_chat_members:
+            if isinstance(member, User):  # ensure it's the expected type
+             await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f"👋 Welcome {member.mention_html()} to Scam’s Plus!\nThis ain’t your average chat. Everything here is structured, ranked, and protected.\n\nPress a button below to get started 👇",
+            text=(
+                f"👋 Welcome {member.mention_html()} to Scam’s Plus!\n"
+                "This ain’t your average chat. Everything here is structured, ranked, and protected.\n\n"
+                "Press a button below to get started 👇"
+            ),
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-# --- Start ---
+# --- /start Command ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type in ["group", "supergroup"]:
-        await update.message.reply_text("👋 DM me privately to access onboarding, rank tools, and more.")
+    if update.effective_chat and update.effective_chat.type in ["group", "supergroup"]:
+        if update.message:
+            await update.message.reply_text("👋 DM me privately to access onboarding, rank tools, and more.")
         return
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📘 Restart Onboarding", callback_data="start_onboarding")],
-        [InlineKeyboardButton("🧠 Start Here Guide", url="https://t.me/c/2286707356/2458")], 
+        [InlineKeyboardButton("🧠 Start Here Guide", url="https://t.me/c/2286707356/2458")],
         [InlineKeyboardButton("👤 My Rank", callback_data="check_rank")],
         [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
     ])
 
-    await update.message.reply_text(
-        "👋 Welcome to Scam’s Plus.\n\nThis bot helps with onboarding, ranks, and navigating the group.\n\nUse the buttons below to get started 👇",
+    if update.message:
+        await update.message.reply_text(
+            "👋 Welcome to Scam’s Plus.\n\nThis bot helps with onboarding, ranks, and navigating the group.\n\nUse the buttons below to get started 👇",
+            reply_markup=keyboard
+        )
+
+# --- Button Logic ---
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    if query is None or query.from_user is None or query.message is None:
+        return  # Defensive check for missing data
+
+    await query.answer()
+    from_user = query.from_user
+    user_id = from_user.id  # noqa: F841 if not used further
+
+    if query.data == "start_onboarding":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📦 Drops & Methods", callback_data="learn_drops")],
+            [InlineKeyboardButton("🛠 Tools & Bots", callback_data="learn_tools")],
+            [InlineKeyboardButton("🔗 Collab With Vendors", callback_data="learn_vendors")],
+            [InlineKeyboardButton("🧑‍🎓 Get Mentorship?", callback_data="learn_mentorship")],
+            [InlineKeyboardButton("🙋 Ask Questions?", callback_data="learn_questions")],
+            [InlineKeyboardButton("🥇 Learn About V.I.P. Lounge?", callback_data="learn_vip")],
+            [InlineKeyboardButton("❓ Not Sure Yet", callback_data="learn_unsure")]
+        ])
+        if query.message:
+            await query.message.reply_text(
+        "🧠 Let’s get you set up.\n\nWhat do you want to do first?",
         reply_markup=keyboard
     )
 
-# --- Buttons ---
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
-    if query.data == "start_onboarding":
-        await query.message.reply_text(
-            "🧠 Let’s get you set up.\n\nWhat do you want to do first?",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📦 Drops & Methods", callback_data="learn_drops")],
-                [InlineKeyboardButton("🛠 Tools & Bots", callback_data="learn_tools")],
-                [InlineKeyboardButton("🔗 Collab With Vendors", callback_data="learn_vendors")],
-                [InlineKeyboardButton("🧑‍🎓 Get Mentorship?", callback_data="learn_mentorship")],
-                [InlineKeyboardButton("🙋 Ask Questions?", callback_data="learn_questions")],
-                [InlineKeyboardButton("🥇 Learn About V.I.P. Lounge?", callback_data="learn_vip")],
-                [InlineKeyboardButton("❓ Not Sure Yet", callback_data="learn_unsure")]
-            ])
-        )
-# --- Elifs ---
     elif query.data == "help":
         await query.message.reply_text("👤 DM @ScamsClub_Store for help.")
 
     elif query.data.startswith("learn_"):
         choice = query.data.replace("learn_", "")
-        create_user_if_not_exists(user_id, query.from_user.username, query.from_user.first_name)
+        create_user_if_not_exists(user_id, from_user.username, from_user.first_name)
         update_onboarding(user_id, learning_path=choice)
 
         response_map = {
@@ -138,5 +162,3 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👉 Start exploring pinned topics or tag a mentor if you’re stuck.",
             parse_mode="Markdown"
         )
-
-    
