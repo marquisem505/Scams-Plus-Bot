@@ -408,9 +408,15 @@ async def healthcheck(request):
 
 
 # --- Main Debugging ---
+
 async def main():
     print("🧪 Starting main()...")  # Debug
     app = Application.builder().token(BOT_TOKEN).build()
+    
+    # Add the bot to the DB
+    me = await app.bot.get_me()
+    create_user_if_not_exists(me.id, me.username, me.first_name)
+    print(f"✅ Bot user {me.username} added to DB with ID {me.id}")
 
     # --- Telegram Webhook ---
     async def telegram_webhook(request):
@@ -425,6 +431,7 @@ async def main():
             return web.Response(status=500, text=f"Error: {e}")
 
     print("🔧 Adding handlers...")  # Debug
+    
     # --- Handlers ---
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
