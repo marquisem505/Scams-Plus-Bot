@@ -186,7 +186,6 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "admin_export_users":
         await query.edit_message_text("📤 Exporting users...")
         # Add logic later
-    # ... and so on
 
 # --- Welcome Fallback ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -526,7 +525,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
 
     # Optional: Catch DM passwords
-    app.add_handler(MessageHandler(filters.TEXT & filters.PRIVATE, admin_password_handler))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, admin_password_handler))
 
     print("🌐 Setting webhook to:", WEBHOOK_URL)
     await app.bot.set_webhook(WEBHOOK_URL)
