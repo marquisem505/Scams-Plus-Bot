@@ -2,7 +2,7 @@ import asyncio
 import logging
 from db import init_db
 from handlers.setup import setup_handlers
-from web.webhook import webhook_handler, healthcheck_handler
+from web.webhook import telegram_webhook_handler, healthcheck_handler
 from telegram.ext import Application
 from utils.constants import BOT_TOKEN, IS_DEV_MODE
 

@@ -4,7 +4,7 @@ import logging
 import asyncio
 from dotenv import load_dotenv
 from db import init_db
-from main import main
+from .main import main
 
 # --- Load ENV ---
 load_dotenv()

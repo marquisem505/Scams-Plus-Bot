@@ -2,7 +2,7 @@
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from constants import ADMIN_ID
+from utils.constants import ADMIN_ID
 from handlers.auth import logged_in_admins
 
 # --- Admin Panel ---
@@ -39,7 +39,7 @@ async def send_admin_panel(update: Update):
         [InlineKeyboardButton("🔄 Reload Configs", callback_data="admin_reload_configs")]
     ]
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text("👑 *Admin Panel*", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 

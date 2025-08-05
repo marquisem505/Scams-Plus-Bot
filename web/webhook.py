@@ -3,6 +3,7 @@ from aiohttp import web
 from telegram import Update
 from telegram.ext import Application
 from utils.constants import WEBHOOK_URL, PORT
+from handlers.setup import setup_handlers
 
 async def telegram_webhook_handler(request):
     try:

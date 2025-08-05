@@ -11,6 +11,24 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+DEFAULT_RANK = "Lookout"
+
+VALID_RANKS = [
+    "Lookout",
+    "Runner",
+    "Closer",
+    "Inner Circle",
+    "OG Members"
+]
+
+PROMOTION_REQUEST_TEMPLATE = (
+    "📤 New Promotion Request:\n\n"
+    "👤 User: {username}\n"
+    "🏷 Current Rank: {current_rank}\n"
+    "🎯 Requested Topic: {topic}\n"
+    "📩 Message: {message}"
+)
+
 
 # --- Topic Mapping ---
 topic_name_to_id = {

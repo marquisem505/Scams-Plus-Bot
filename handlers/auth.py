@@ -2,7 +2,7 @@
 
 from telegram import Update
 from telegram.ext import ContextTypes
-from constants import ADMIN_PASSWORD
+from utils.constants import ADMIN_PASSWORD
 logged_in_admins = set()
 
 # --- Admin Authentication ---
