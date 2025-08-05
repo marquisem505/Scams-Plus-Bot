@@ -16,7 +16,7 @@ from db import (
     get_user_rank,
     update_onboarding,
     get_onboarding_summary,
-    init_db   # ← Add this line
+    init_db
 )
 
 # --- Load ENV ---
@@ -26,6 +26,7 @@ GROUP_ID = int(os.getenv("GROUP_ID", "-2286707356"))
 ADMIN_ID = int(os.getenv("ADMIN_ID", "6967780222"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
+ADMIN_PASSWORD = "z8o9eq4hMi"
 
 # --- Logging ---
 logging.basicConfig(
@@ -135,6 +136,19 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("🔐 Please enter the admin password:")
         context.user_data["awaiting_admin_password"] = True
+
+async def admin_password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
+
+    if user_id != ADMIN_ID:
+        return  # ignore if not the admin
+
+    if text == ADMIN_PASSWORD:
+        await update.message.reply_text("✅ Admin access granted. Use /admin to open the panel.")
+        context.user_data["admin_authenticated"] = True
+    else:
+        await update.message.reply_text("❌ Incorrect password. Try again.")
 
     keyboard = [
         [InlineKeyboardButton("📊 View Stats", callback_data="admin_view_stats")],
