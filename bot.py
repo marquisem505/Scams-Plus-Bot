@@ -116,6 +116,64 @@ rank_access_topics = {
     ]
 }
 
+# --- Admin Panel ---
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 You are not authorized to access this panel.")
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("📊 View Stats", callback_data="admin_view_stats")],
+        [InlineKeyboardButton("📤 Export Users", callback_data="admin_export_users")],
+        [InlineKeyboardButton("📥 Import Users", callback_data="admin_import_users")],
+        [InlineKeyboardButton("🧑‍💼 Assign Rank", callback_data="admin_assign_rank")],
+        [InlineKeyboardButton("📨 Review Promotion Requests", callback_data="admin_review_promotions")],
+        [InlineKeyboardButton("🧹 Reset Violations", callback_data="admin_reset_violations")],
+        [InlineKeyboardButton("⛔ Mute User", callback_data="admin_mute_user")],
+        [InlineKeyboardButton("🔄 Reload Configs", callback_data="admin_reload_configs")],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text("👑 *Admin Panel* 👑", reply_markup=reply_markup, parse_mode="Markdown")
+
+async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+
+    if data == "admin_view_users":
+        await query.edit_message_text("👥 Viewing users... (Coming soon)")
+
+    elif data == "admin_assign_rank":
+        await query.edit_message_text("🏷️ Rank assignment panel... (Coming soon)")
+
+    elif data == "admin_promotions":
+        await query.edit_message_text("📥 Promotion requests... (Coming soon)")
+
+    elif data == "admin_logs":
+        await query.edit_message_text("📜 Viewing logs... (Coming soon)")
+
+    elif data == "admin_settings":
+        await query.edit_message_text("⚙️ Settings... (Coming soon)")
+
+
+
+# Callback handler stub
+async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "admin_view_stats":
+        await query.edit_message_text("📊 Gathering stats...")
+        # Add logic later
+    elif data == "admin_export_users":
+        await query.edit_message_text("📤 Exporting users...")
+        # Add logic later
+    # ... and so on
+
 # --- Welcome Fallback ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
@@ -481,6 +539,7 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("admin", admin_panel))
 
     # --- Webhook Server ---
     web_app = web.Application()
