@@ -279,7 +279,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if topic_id not in allowed_topics:
         # Count and store violations
-        violation_counts[uid] = violation_counts.get(uid, 0) + 1
+        increment_violation(uid)
 
         # Attempt to delete the message
         try:
@@ -493,5 +493,6 @@ async def main():
 
 # --- Run ---
 if __name__ == "__main__":
+    from db import init_db
     init_db()
     asyncio.run(main())
