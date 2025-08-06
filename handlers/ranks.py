@@ -82,5 +82,4 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     await handle_join(member, context)
 
-)
 

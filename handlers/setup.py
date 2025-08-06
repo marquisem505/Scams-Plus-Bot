@@ -19,7 +19,7 @@ from handlers.onboarding import (
     button_handler,
     topic_guard_handler,
 )
-from handlers.chat_events import handle_join, new_chat_member_message
+from handlers.onboarding import handle_chat_member_update, new_chat_member_message
 from handlers.ranks import assign_rank, demote, myrank, promoteme, reply_forwarder
 
 
@@ -35,7 +35,7 @@ def setup_handlers(app: Application):
     app.add_handler(CommandHandler("logs", view_logs))
 
     # Message Handlers
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS,handle_chat_member_update, new_chat_member_message))
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, reply_forwarder))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, topic_guard_handler))
