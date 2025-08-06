@@ -33,11 +33,7 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Assigned rank `{rank}` to @{username}.", parse_mode="Markdown")
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found in database.")
-# --- My Rank ---
-async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    rank = get_user_rank(uid) or "❌ Unranked"
-    await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
+
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -70,7 +66,13 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ User @{username} not found in database.")
 
-# --- Check Rank --
+
+# --- My Rank ---
+async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("📛 Your rank is: Lookout (example).")
+    uid = update.effective_user.id
+    rank = get_user_rank(uid) or "❌ Unranked"
+    await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
     elif query.data == "check_rank":
         rank = get_user_rank(user_id) or "❌ Unranked"
         await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
@@ -79,4 +81,6 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if member.chat.id != GROUP_ID:
         return
     await handle_join(member, context)
+
+)
 

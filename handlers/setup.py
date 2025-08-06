@@ -14,14 +14,13 @@ from handlers.admin import (
 )
 from handlers.onboarding import (
     start_command,
-    handle_private_message),
-    reply_forwarder,
+    handle_private_message,
     view_logs,
     button_handler,
     topic_guard_handler,
 )
 from handlers.chat_events import handle_join, new_chat_member_message
-from handlers.ranks import set_user_rank, demote, myrank, promoteme
+from handlers.ranks import assign_rank, demote, myrank, promoteme, reply_forwarder
 
 
 def setup_handlers(app: Application):
@@ -29,7 +28,7 @@ def setup_handlers(app: Application):
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("logout", logout_command))
-    app.add_handler(CommandHandler("assignrank", set_user_rank))
+    app.add_handler(CommandHandler("assignrank", assign_rank))
     app.add_handler(CommandHandler("demote", demote))
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
@@ -45,3 +44,4 @@ def setup_handlers(app: Application):
     # Callback Query Handlers
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CallbackQueryHandler(admin_callback_handler))
+

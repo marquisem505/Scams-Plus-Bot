@@ -28,8 +28,6 @@ PROMOTION_REQUEST_TEMPLATE = (
     "🎯 Requested Topic: {topic}\n"
     "📩 Message: {message}"
 )
-
-
 # --- Topic Mapping ---
 topic_name_to_id = {
     "Welcome To Scam's Plus - Start Here": 2458,
