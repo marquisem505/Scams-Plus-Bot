@@ -16,10 +16,10 @@ load_dotenv()
 
 # --- Logging ---
 logging.basicConfig(
-    filename="scamsclub_bot.log",
-    filemode="a",
-    format="[%(asctime)s] %(levelname)s - %(message)s",
-    level=logging.info
+    level=logging.INFO,  
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    filename='scamsclub_bot.log',
+    filemode='a'
 )
 
 # --- Main async ---
