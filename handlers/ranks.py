@@ -69,17 +69,8 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- My Rank ---
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📛 Your rank is: Lookout (example).")
     uid = update.effective_user.id
     rank = get_user_rank(uid) or "❌ Unranked"
     await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
-    elif query.data == "check_rank":
-        rank = get_user_rank(user_id) or "❌ Unranked"
-        await query.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
-async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    member: ChatMemberUpdated = update.chat_member
-    if member.chat.id != GROUP_ID:
-        return
-    await handle_join(member, context)
 
 
