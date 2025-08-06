@@ -27,9 +27,6 @@ async def main():
     if IS_DEV_MODE:
         logging.info("🧪 DEV MODE ENABLED")
 
-    async def telegram_webhook_handler(request):
-    logging.info("📥 Webhook hit")
-
     logging.info("🔧 Initializing bot...")
     app = Application.builder().token(BOT_TOKEN).build()
 
