@@ -17,6 +17,7 @@ from handlers.onboarding import (
     handle_private_message,
     view_logs,
     topic_guard_handler,
+    button_handler,
 )
 from handlers.onboarding import handle_chat_member_update, new_chat_member_message
 from handlers.ranks import assign_rank, demote, myrank, promoteme, reply_forwarder, handle_join

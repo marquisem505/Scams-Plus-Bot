@@ -1,15 +1,13 @@
 # handlers/onboarding.py
 
 from telegram import (
-    Update, InlineKeyboardButton, InlineKeyboardMarkup,
-    ChatMemberUpdated, InputFile, User
+    Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, User
 )
 from telegram.ext import ContextTypes
 from db import (
-    create_user_if_not_exists, update_onboarding,
-    get_user_rank, set_user_rank, get_onboarding_summary
+    create_user_if_not_exists, update_onboarding, set_user_rank, get_onboarding_summary
 )
-from utils.constants import GROUP_ID, topic_name_to_id, rank_access_topics, ADMIN_ID
+from utils.constants import GROUP_ID, topic_name_to_id, rank_access_topics, ADMIN_ID, get_user_rank
 from handlers.auth import logged_in_admins, ADMIN_PASSWORD
 import logging
 import os
@@ -169,3 +167,79 @@ async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             except Exception as e:
                 logging.warning(f"❌ Failed to forward promotion reply: {e}")
+# --- Button Handler ---
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if query is None or query.from_user is None:
+        return
+
+    await query.answer()
+    user = query.from_user
+    user_id = user.id
+
+    # Onboarding path selection
+    if query.data == "start_onboarding":
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📦 Drops & Methods", callback_data="learn_drops")],
+            [InlineKeyboardButton("🛠 Tools & Bots", callback_data="learn_tools")],
+            [InlineKeyboardButton("🔗 Collab With Vendors", callback_data="learn_vendors")],
+            [InlineKeyboardButton("🧑‍🎓 Get Mentorship?", callback_data="learn_mentorship")],
+            [InlineKeyboardButton("🙋 Ask Questions?", callback_data="learn_questions")],
+            [InlineKeyboardButton("🥇 Learn About V.I.P. Lounge?", callback_data="learn_vip")],
+            [InlineKeyboardButton("❓ Not Sure Yet", callback_data="learn_unsure")]
+        ])
+        await query.message.reply_text("🧠 Let’s get you set up.\n\nWhat do you want to do first?", reply_markup=keyboard)
+
+    elif query.data.startswith("learn_"):
+        choice = query.data.replace("learn_", "")
+        create_user_if_not_exists(user_id, user.username, user.first_name)
+        update_onboarding(user_id, learning_path=choice)
+
+        response_map = {
+            "drops": "🔥 Check `Verified Guides` and `Con Academy` threads.",
+            "tools": "🛠 Dive into `Tools & Bots`.",
+            "mentorship": "🧑‍🎓 See `Con Academy`, a mentor will reach out.",
+            "vip": "🥇 Explore `V.I.P Lounge` — rank up to access.",
+            "questions": "🙋 Ask anything in the `Questions` thread.",
+            "vendors": "🔗 Browse `Verified Vendors / Collabs`.",
+            "unsure": "💡 Explore the pinned thread to get familiar."
+        }
+
+        await query.message.reply_text(response_map.get(choice, "✅ Let’s continue..."))
+
+        await query.message.reply_text(
+            "🧠 What’s your experience level?",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Beginner", callback_data="exp_beginner")],
+                [InlineKeyboardButton("💻 Intermediate", callback_data="exp_intermediate")],
+                [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
+            ])
+        )
+
+    elif query.data.startswith("exp_"):
+        level = query.data.replace("exp_", "")
+        update_onboarding(user_id, experience=level)
+        await query.message.reply_text(
+            "🔍 What are you interested in?",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🏦 Refunds", callback_data="target_refunds"),
+                 InlineKeyboardButton("💳 Cards", callback_data="target_cards")],
+                [InlineKeyboardButton("📲 OTPs", callback_data="target_otp"),
+                 InlineKeyboardButton("🧑‍💻 Automation", callback_data="target_auto")],
+                [InlineKeyboardButton("📚 Just Exploring", callback_data="target_general")]
+            ])
+        )
+
+    elif query.data.startswith("target_"):
+        focus = query.data.replace("target_", "")
+        update_onboarding(user_id, interest=focus)
+        summary = get_onboarding_summary(user_id)
+        await query.message.reply_text(
+            f"✅ All set!\n\n"
+            f"👤 {summary['first_name']} (@{summary['username']})\n"
+            f"🧠 Goal: `{summary['learning_path']}`\n"
+            f"📈 Experience: `{summary['experience']}`\n"
+            f"🎯 Focus: `{summary['interest']}`\n\n"
+            "👉 Explore pinned topics or tag a mentor if you’re stuck.",
+            parse_mode="Markdown"
+        )
