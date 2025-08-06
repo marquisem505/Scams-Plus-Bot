@@ -2,7 +2,7 @@
 
 from telegram import Update, ChatPermissions
 from telegram.ext import ContextTypes
-from utils.constants import RANK_ACCESS_TOPICS, GROUP_ID
+from utils.constants import  GROUP_ID
 from db import get_user_rank
 import time
 

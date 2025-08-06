@@ -5,7 +5,7 @@ from telegram.ext import ContextTypes
 from utils.constants import ADMIN_ID, ADMIN_PASSWORD
 from utils.helpers import send_dm, is_admin
 from handlers.auth import logged_in_admins
-from handlers.ranks import assign_rank, my_rank, promote_me, demote_command as demote_logic
+from handlers.ranks import assign_rank, myrank, promoteme, demote as demote_logic
 
 # --- Admin Panel ---
 
