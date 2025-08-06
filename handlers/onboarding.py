@@ -77,9 +77,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # --- Button Logic ---
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 

@@ -2,8 +2,10 @@
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from utils.constants import ADMIN_ID
+from utils.constants import ADMIN_ID, ADMIN_PASSWORD
+from utils.helpers import send_dm, is_admin
 from handlers.auth import logged_in_admins
+from handlers.ranks import assign_rank, my_rank, promote_me, demote_command as demote_logic
 
 # --- Admin Panel ---
 
@@ -76,3 +78,28 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     else:
         await query.edit_message_text("❓ Unknown admin action.")
 
+# --- Logout Command ---
+async def logout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if user_id in logged_in_admins:
+        logged_in_admins.remove(user_id)
+        context.user_data["admin_authenticated"] = False
+        await update.message.reply_text("✅ You've been logged out of the admin panel.")
+    else:
+        await update.message.reply_text("⚠️ You are not logged in.")
+
+# --- Admin Password ---
+async def handle_private_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text
+
+    if context.user_data.get("awaiting_admin_password"):
+        if text == ADMIN_PASSWORD:
+            logged_in_admins.add(user_id)
+            context.user_data["admin_authenticated"] = True
+            context.user_data["awaiting_admin_password"] = False
+            await update.message.reply_text("✅ Access granted. Use /admin again.")
+        else:
+            await update.message.reply_text("❌ Incorrect password. Try again.")
+        return
