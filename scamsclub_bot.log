@@ -1,0 +1,3 @@
+[2025-08-06 09:18:15,564] INFO - 🧪 DEV MODE ENABLED
+[2025-08-06 09:18:15,564] INFO - 🔧 Initializing bot...
+[2025-08-06 09:18:16,184] INFO - HTTP Request: POST https://api.telegram.org/botyour_bot_token/getMe "HTTP/1.1 404 Not Found"
