@@ -19,7 +19,7 @@ logging.basicConfig(
     filename="scamsclub_bot.log",
     filemode="a",
     format="[%(asctime)s] %(levelname)s - %(message)s",
-    level=logging.INFO
+    level=logging.info
 )
 
 # --- Main async ---
