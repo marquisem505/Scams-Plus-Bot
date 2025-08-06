@@ -1,5 +1,6 @@
-# handlers/topic_guard.py
-
+# --- handlers/topic_guard.py ---
+# This module handles topic access control based on user ranks in a Telegram group.
+# It restricts users from posting in topics they are not allowed to access based on their rank.
 import logging
 from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
