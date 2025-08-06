@@ -40,7 +40,7 @@ async def main():
 
     # --- Webhook Setup ---
     webhook_path = "/telegram-webhook"
-    await app.bot.set_webhook(url=f"{WEBHOOK_URL}{webhook_path}")
+    await app.bot.set_webhook(WEBHOOK_URL + "/telegram-webhook")
     logging.info(f"🌐 Webhook set to {WEBHOOK_URL}{webhook_path}")
 
     # --- Aiohttp Web Server ---
