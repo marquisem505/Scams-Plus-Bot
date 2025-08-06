@@ -12,7 +12,7 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", 8080))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 DEFAULT_RANK = "Lookout"
-
+IS_DEV_MODE = os.getenv("ENV", "dev") == "dev"
 VALID_RANKS = [
     "Lookout",
     "Runner",
