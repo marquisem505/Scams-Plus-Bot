@@ -13,6 +13,7 @@ from web.webhook import telegram_webhook_handler, healthcheck_handler
 
 # --- Load ENV ---
 load_dotenv()
+print("Loaded BOT_TOKEN:", os.getenv("BOT_TOKEN"))
 
 # --- Logging ---
 logging.basicConfig(
