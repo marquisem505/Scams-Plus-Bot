@@ -9,7 +9,7 @@ from telegram.ext import Application
 from utils.constants import BOT_TOKEN, PORT, IS_DEV_MODE, WEBHOOK_URL, GROUP_ID
 from db import init_db, create_user_if_not_exists
 from handlers.setup import setup_handlers
-from web.webhook import telegram_webhook_handler, healthcheck_handler
+from web.webhook import telegram_webhook_handler, healthcheck_handler, setup_routes
 
 # --- Load ENV ---
 load_dotenv()

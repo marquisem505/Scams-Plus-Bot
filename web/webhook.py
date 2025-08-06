@@ -14,7 +14,10 @@ async def telegram_webhook_handler(request):
     except Exception as e:
         logging.error("❌ Webhook error: " + str(e))
         return web.Response(status=500, text=f"Error: {e}")
-
+# --- Healthcheck Handler ---
+async def setup_routes(app):
+    app.router.add_post("/telegram-webhook", telegram_webhook_handler)
+    app.router.add_get("/healthcheck", healthcheck_handler)
 async def healthcheck_handler(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
