@@ -7,7 +7,6 @@ from aiohttp import web
 from db import init_db, create_user_if_not_exists
 from telegram.ext import Application
 from utils.constants import BOT_TOKEN, IS_DEV_MODE, PORT
-from handlers.setup import setup_handlers
 
 # --- Load ENV ---
 load_dotenv()
@@ -28,8 +27,6 @@ async def main():
     logging.info("✅ Loading bot and building application...")
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Register bot handlers
-    setup_handlers(app)
 
     # Save bot identity to DB
     me = await app.bot.get_me()
