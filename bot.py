@@ -1,12 +1,15 @@
-# --- Imports ---
+# bot.py
+
 import os
-import logging
 import asyncio
-from dotenv import load_dotenv
+import logging
 from aiohttp import web
-from db import init_db, create_user_if_not_exists
+from dotenv import load_dotenv
 from telegram.ext import Application
-from utils.constants import BOT_TOKEN, IS_DEV_MODE, PORT
+from utils.constants import BOT_TOKEN, PORT, IS_DEV_MODE, WEBHOOK_URL, GROUP_ID
+from db import init_db, create_user_if_not_exists
+from handlers.setup import setup_handlers
+from web.webhook import telegram_webhook_handler, healthcheck_handler
 
 # --- Load ENV ---
 load_dotenv()
@@ -19,36 +22,40 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# --- Main Function ---
+# --- Main async ---
 async def main():
     if IS_DEV_MODE:
-        logging.info("🧪 DEV MODE: Verbose logs enabled")
+        logging.info("🧪 DEV MODE ENABLED")
 
-    logging.info("✅ Loading bot and building application...")
+    logging.info("🔧 Initializing bot...")
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # Register command/message/callback handlers
+    setup_handlers(app)
 
-    # Save bot identity to DB
+    # Store Telegram bot info
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
     logging.info(f"🤖 Logged in as @{me.username} (ID: {me.id})")
 
+    # --- Webhook Setup ---
+    webhook_path = "/telegram-webhook"
+    await app.bot.set_webhook(url=f"{WEBHOOK_URL}{webhook_path}")
+    logging.info(f"🌐 Webhook set to {WEBHOOK_URL}{webhook_path}")
+
+    # --- Aiohttp Web Server ---
+    web_app = web.Application()
+    web_app["bot_app"] = app
+    web_app.router.add_post(webhook_path, telegram_webhook_handler)
+    web_app.router.add_get("/healthcheck", healthcheck_handler)
+
+    # --- Final Start ---
     await app.initialize()
     await app.start()
-
-    if IS_DEV_MODE:
-        logging.info("🚀 Dev Mode: Bot running in polling mode...")
-        await asyncio.Event().wait()
-    else:
-        logging.info("🚀 Prod Mode: Bot running with webhook...")
-        web_app = build_web_app(app)
-        runner = web.AppRunner(web_app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", PORT)
-        await site.start()
+    logging.info("✅ Bot started via webhook (Railway)")
+    web.run_app(web_app, port=PORT)
 
 # --- Run ---
 if __name__ == "__main__":
-    logging.info("🧪 Starting main()...")
     init_db()
     asyncio.run(main())
