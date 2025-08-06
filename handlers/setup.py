@@ -19,7 +19,7 @@ from handlers.onboarding import (
     topic_guard_handler,
 )
 from handlers.onboarding import handle_chat_member_update, new_chat_member_message
-from handlers.ranks import assign_rank, demote, myrank, promoteme, reply_forwarder
+from handlers.ranks import assign_rank, demote, myrank, promoteme, reply_forwarder, handle_join
 
 
 def setup_handlers(app: Application):
