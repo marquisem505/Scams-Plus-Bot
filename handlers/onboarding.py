@@ -5,9 +5,9 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 from db import (
-    create_user_if_not_exists, update_onboarding, set_user_rank, get_onboarding_summary
+    create_user_if_not_exists, update_onboarding, set_user_rank, get_onboarding_summary, get_user_rank
 )
-from utils.constants import GROUP_ID, topic_name_to_id, rank_access_topics, ADMIN_ID, get_user_rank
+from utils.constants import GROUP_ID, topic_name_to_id, rank_access_topics, ADMIN_ID, 
 from handlers.auth import logged_in_admins, ADMIN_PASSWORD
 import logging
 import os
