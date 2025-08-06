@@ -43,7 +43,7 @@ async def run_webhook():
 
     runner = web.AppRunner(web_app)
     await runner.setup()
-    site = web.TCPSite(runner, "8.0.8.0", PORT)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
     await app.start()
