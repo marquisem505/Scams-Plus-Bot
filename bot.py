@@ -3,13 +3,13 @@ import os
 import logging
 import asyncio
 from dotenv import load_dotenv
-from db import init_db
-from web.webhook import telegram_webhook_handler, healthcheck_handler
+from aiohttp import web
+from db import init_db, create_user_if_not_exists
 from telegram.ext import Application
-from utils.constants import BOT_TOKEN, IS_DEV_MODE
+from utils.constants import BOT_TOKEN, IS_DEV_MODE, PORT
 from handlers.setup import setup_handlers
 
-# --- Load ENV --- 
+# --- Load ENV ---
 load_dotenv()
 
 # --- Logging ---
@@ -19,28 +19,37 @@ logging.basicConfig(
     format="[%(asctime)s] %(levelname)s - %(message)s",
     level=logging.INFO
 )
+
 # --- Main Function ---
 async def main():
     if IS_DEV_MODE:
         logging.info("🧪 DEV MODE: Verbose logs enabled")
 
     logging.info("✅ Loading bot and building application...")
-# --- Application ---
     app = Application.builder().token(BOT_TOKEN).build()
 
-# Register handlers
+    # Register bot handlers
     setup_handlers(app)
 
-# --- Bot to DB ---
-    from db import create_user_if_not_exists
+    # Save bot identity to DB
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
     logging.info(f"🤖 Logged in as @{me.username} (ID: {me.id})")
-# --- Start Polling ---
+
     await app.initialize()
     await app.start()
-    logging.info("🚀 Bot started and polling...")
-    await asyncio.Event().wait()
+
+    if IS_DEV_MODE:
+        logging.info("🚀 Dev Mode: Bot running in polling mode...")
+        await asyncio.Event().wait()
+    else:
+        logging.info("🚀 Prod Mode: Bot running with webhook...")
+        web_app = build_web_app(app)
+        runner = web.AppRunner(web_app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", PORT)
+        await site.start()
+
 # --- Run ---
 if __name__ == "__main__":
     logging.info("🧪 Starting main()...")
