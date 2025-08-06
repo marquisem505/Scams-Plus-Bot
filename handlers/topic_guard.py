@@ -1,10 +1,9 @@
 # handlers/topic_guard.py
-
-from telegram import Update, ChatPermissions
+import logging
+from telegram import Update, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup, 
 from telegram.ext import ContextTypes
 from utils.constants import  GROUP_ID
 from db import get_user_rank
-import time
 
 # --- Memory ---
 violation_counts = {}  # optional: move to SQLite later
