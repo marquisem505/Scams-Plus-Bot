@@ -67,10 +67,5 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ User @{username} not found in database.")
 
 
-# --- My Rank ---
-async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    rank = get_user_rank(uid) or "❌ Unranked"
-    await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 
 
