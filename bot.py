@@ -19,6 +19,7 @@ from db import (
     init_db
 )
 
+
 # --- Load ENV ---
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -119,6 +120,30 @@ rank_access_topics = {
 }
 
 # --- Admin Panel ---
+
+# --- Admin Password Handler ---
+logged_in_admins = set()
+
+async def handle_admin_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_type = update.effective_chat.type
+    message = update.message.text.strip()
+
+    if chat_type != "private":
+        return
+
+    if context.user_data.get("awaiting_admin_password", False):
+        if message == ADMIN_PASSWORD:
+            logged_in_admins.add(user_id)
+            context.user_data["admin_authenticated"] = True
+            context.user_data["awaiting_admin_password"] = False
+
+            await update.message.reply_text("✅ Access granted.")
+            await send_admin_panel(update)  # show panel immediately
+        else:
+            await update.message.reply_text("❌ Incorrect password. Try again.")
+
+# --- Admin Command ---
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_type = update.effective_chat.type
@@ -138,6 +163,8 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("🔐 Please enter the admin password:")
         context.user_data["awaiting_admin_password"] = True
+
+
 
 # --- Admin Buttons ---
 async def send_admin_panel(update: Update):
@@ -516,6 +543,7 @@ async def main():
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, admin_callback_handler))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_admin_password))
     app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, reply_forwarder))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
     app.add_handler(CallbackQueryHandler(button_handler))
