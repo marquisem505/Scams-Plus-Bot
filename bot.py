@@ -494,14 +494,8 @@ async def healthcheck(request):
 
 # --- Main ---
 async def main():
-    from handlers import (
-        start_command, admin_panel, logout_command, status_command,
-        assign_rank, demote, myrank, promoteme, reply_forwarder, view_logs,
-        new_chat_member_message, handle_join, button_handler,
-        chat_member_update, topic_guard, admin_password_handler,
-        admin_callback_handler
-    )
-
+    
+# --- Application Setup ---
     app = Application.builder().token(BOT_TOKEN).build()
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
