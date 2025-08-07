@@ -496,7 +496,7 @@ async def healthcheck(request):
 async def main():
     print("✅ Scam's Club bot is starting...") 
     app = Application.builder().token(BOT_TOKEN).build()
-    await app.bot.set_webhook(f"{WEBHOOK_URL})
+    await app.bot.set_webhook(f"{WEBHOOK_URL}/telegram-webhook")
     logging.info("Bot started successfully.")
 
     me = await app.bot.get_me()
