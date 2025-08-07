@@ -494,9 +494,11 @@ async def healthcheck(request):
 
 # --- Main ---
 async def main():
-
-# --- Application Setup ---
+    # --- Setup Telegram Application ---
     app = Application.builder().token(BOT_TOKEN).build()
+    await app.bot.set_webhook(f"{WEBHOOK_URL}/telegram-webhook")
+    logging.info("Bot started successfully.")
+
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
 
@@ -519,7 +521,7 @@ async def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CallbackQueryHandler(admin_callback_handler))
 
-    # --- Webhook Setup ---
+    # --- Web Server for Webhook ---
     async def telegram_webhook(request):
         try:
             data = await request.json()
@@ -533,9 +535,6 @@ async def main():
     async def healthcheck(request):
         return web.Response(text="✅ Bot is alive!", status=200)
 
-    await app.bot.set_webhook(WEBHOOK_URL)
-    await app.initialize()
-
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
     web_app.router.add_post("/telegram-webhook", telegram_webhook)
@@ -545,6 +544,7 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
+    await app.initialize()
     await app.start()
     await asyncio.Event().wait()
 
