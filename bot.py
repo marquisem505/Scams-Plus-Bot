@@ -126,20 +126,15 @@ logged_in_admins = set()
 
 async def handle_admin_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_type = update.effective_chat.type
-    message = update.message.text.strip()
+    text = update.message.text.strip()
 
-    if chat_type != "private":
-        return
-
-    if context.user_data.get("awaiting_admin_password", False):
-        if message == ADMIN_PASSWORD:
-            logged_in_admins.add(user_id)
+    if context.user_data.get("awaiting_admin_password"):
+        if text == os.getenv("ADMIN_PASSWORD"):  # Or hardcode directly if not using .env
             context.user_data["admin_authenticated"] = True
+            logged_in_admins.add(user_id)
             context.user_data["awaiting_admin_password"] = False
-
             await update.message.reply_text("✅ Access granted.")
-            await send_admin_panel(update)  # show panel immediately
+            await send_admin_panel(update)
         else:
             await update.message.reply_text("❌ Incorrect password. Try again.")
 
