@@ -7,3 +7,4 @@
 [2025-08-06 09:21:11,666] INFO - 🧪 DEV MODE ENABLED
 [2025-08-06 09:21:11,667] INFO - 🔧 Initializing bot...
 [2025-08-06 09:21:12,141] INFO - HTTP Request: POST https://api.telegram.org/botyour_bot_token/getMe "HTTP/1.1 404 Not Found"
+[2025-08-07 01:34:51,070] INFO - HTTP Request: POST https://api.telegram.org/bot8242227775:AAFboCbPHPOpWvum9HPZoLVmej2I15tqIc0/setWebhook "HTTP/1.1 400 Bad Request"

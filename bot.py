@@ -322,9 +322,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔍 Any specific drops, tools, or methods you're looking for?",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🏦 Refunds", callback_data="target_refunds"),
-                 InlineKeyboardButton("💳 CC/Fullz", callback_data="target_cards")],
+                InlineKeyboardButton("💳 CC/Fullz", callback_data="target_cards")],
                 [InlineKeyboardButton("📲 Spoofing & OTPs", callback_data="target_otp"),
-                 InlineKeyboardButton("🧑‍💻 Automations", callback_data="target_auto")],
+                InlineKeyboardButton("🧑‍💻 Automations", callback_data="target_auto")],
                 [InlineKeyboardButton("📚 Just Exploring", callback_data="target_general")]
             ])
         )
