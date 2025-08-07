@@ -494,7 +494,7 @@ async def healthcheck(request):
 
 # --- Main ---
 async def main():
-    
+
 # --- Application Setup ---
     app = Application.builder().token(BOT_TOKEN).build()
     me = await app.bot.get_me()
@@ -513,7 +513,7 @@ async def main():
 
     app.add_handler(ChatMemberHandler(handle_join, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, admin_password_handler))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, admin_callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, reply_forwarder))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
     app.add_handler(CallbackQueryHandler(button_handler))
