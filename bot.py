@@ -560,7 +560,7 @@ async def main():
 
     web_app = web.Application()
     web_app.router.add_get("/status", healthcheck)
-    web_app.router.add_post("/telegram-webhook")
+    web_app.router.add_post("/telegram-webhook", telegram_webhook)
 
     runner = web.AppRunner(web_app)
     await runner.setup()
