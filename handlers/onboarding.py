@@ -1,4 +1,3 @@
-# handlers/onboarding.py
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -21,21 +20,20 @@ async def handle_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
         create_user_if_not_exists(user.id, user.username, user.first_name)
         set_user_rank(user.id, "Lookout")
 
-        # DM new user
         await context.bot.send_message(
             chat_id=user.id,
             text="Welcome to Scam's Plus! You've been assigned the rank: Lookout."
         )
-        # Notify admin
+
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=(
-                f"👤 {user.first_name} (@{user.username}) just joined "
+                f"👤 {user.first_name} (@{user.username or 'NoUsername'}) just joined "
                 "and was auto-ranked to Lookout."
             )
         )
 
-# --- Welcome Fallback ---
+# --- Welcome Message (for non-chat_member updates) ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = InlineKeyboardMarkup([
@@ -53,9 +51,9 @@ async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-        store_message_id(update.effective_chat.id, msg.message_id)
+        store_message_id(context, update.effective_chat.id, msg.message_id)
 
-# --- Forum-style Welcome (chat_member_update) ---
+# --- Forum-style ChatMemberHandler welcome ---
 async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     member = update.chat_member.new_chat_member.user
     if update.chat_member.chat.id != GROUP_ID:
@@ -65,6 +63,7 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
         create_user_if_not_exists(member.id, member.username, member.first_name)
         if get_user_rank(member.id) is None:
             set_user_rank(member.id, "Lookout")
+
         logging.info(f"Assigned default rank 'Lookout' to user {member.id}")
 
         keyboard = InlineKeyboardMarkup([
@@ -81,16 +80,15 @@ async def chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
             reply_markup=keyboard,
             parse_mode="HTML"
         )
-        store_message_id(GROUP_ID, msg.message_id)
+        store_message_id(context, GROUP_ID, msg.message_id)
 
-# --- Onboarding Button Flow ---
+# --- Inline Onboarding Button Flow ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
     chat_id = query.message.chat_id
 
-    # clear old onboarding messages
     await delete_old_messages(context, chat_id)
 
     if query.data == "start_onboarding":
@@ -106,11 +104,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("❓ Not Sure Yet", callback_data="learn_unsure")]
             ])
         )
-        store_message_id(chat_id, msg.message_id)
+        store_message_id(context, chat_id, msg.message_id)
 
     elif query.data == "help":
         msg = await query.message.reply_text("👤 DM @ScamsClub_Store for help.")
-        store_message_id(chat_id, msg.message_id)
+        store_message_id(context, chat_id, msg.message_id)
 
     elif query.data.startswith("learn_"):
         choice = query.data.replace("learn_", "")
@@ -126,6 +124,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "vendors":    "🔗 See `Verified Vendors / Collabs`.",
             "unsure":     "💡 Lurk in `Start Here` to get oriented."
         }
+
         msg1 = await query.message.reply_text(response_map[choice])
         msg2 = await query.message.reply_text(
             "🧠 Your experience level?",
@@ -135,8 +134,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🥇 Advanced", callback_data="exp_advanced")]
             ])
         )
-        store_message_id(chat_id, msg1.message_id)
-        store_message_id(chat_id, msg2.message_id)
+        store_message_id(context, chat_id, msg1.message_id)
+        store_message_id(context, chat_id, msg2.message_id)
 
     elif query.data.startswith("exp_"):
         level = query.data.replace("exp_", "")
@@ -151,7 +150,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("📚 Just Exploring", callback_data="target_general")]
             ])
         )
-        store_message_id(chat_id, msg.message_id)
+        store_message_id(context, chat_id, msg.message_id)
 
     elif query.data.startswith("target_"):
         focus = query.data.replace("target_", "")
@@ -163,11 +162,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🧠 Goal: `{summary['learning_path']}`\n"
             f"📈 Exp: `{summary['experience']}`\n"
             f"🎯 Focus: `{summary['interest']}`\n\n"
-            "👉 Tag a mentor if you’re stuck."
+            "👉 Tag a mentor if you’re stuck.",
+            parse_mode="Markdown"
         )
-        store_message_id(chat_id, msg.message_id)
+        store_message_id(context, chat_id, msg.message_id)
 
     elif query.data == "check_rank":
         rank = get_user_rank(user_id) or "Unranked"
-        msg = await query.message.reply_text(f"🏷 Your rank: `{rank}`")
-        store_message_id(chat_id, msg.message_id)
+        msg = await query.message.reply_text(f"🏷 Your rank: `{rank}`", parse_mode="Markdown")
+        store_message_id(context, chat_id, msg.message_id)

@@ -1,48 +1,34 @@
 # --- Imports ---
-from dotenv import load_dotenv
 import os
 import asyncio
 import logging
-from db import (init_db,
-create_user_if_not_exists
-)
-from handlers.logs import view_logs
-from handlers.status import status_command
-from handlers.general import (
-start_command, 
-menu_handler
-)
+from dotenv import load_dotenv
 from aiohttp import web
 from telegram import Update, BotCommand
 from telegram.ext import (
-Application,
-CommandHandler,
-CallbackQueryHandler,
-MessageHandler,
-ContextTypes,
-filters,
-ChatMemberHandler,
-ChatJoinRequestHandler
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ChatMemberHandler,
+    ChatJoinRequestHandler,
+    ContextTypes,
+    filters
 )
 
-from handlers.admin import ( admin_panel,
-handle_admin_dm,
-logout_command
-)
-from utils.helpers import delete_old_messages, store_message_id
+# --- Local Modules ---
+from db import init_db, create_user_if_not_exists
 from utils.constants import BOT_TOKEN, WEBHOOK_URL, PORT
+from utils.helpers import delete_old_messages, store_message_id
 
-from handlers.onboarding import (
-    chat_member_update,
-    new_chat_member_message,
-    button_handler, handle_join
-)
-from handlers.rank import (
-    assign_rank, promoteme, reply_forwarder,
-    demote, myrank, topic_guard
-)
+from handlers.logs import view_logs
+from handlers.status import status_command
+from handlers.general import start_command, menu_handler
+from handlers.admin import admin_panel, handle_admin_dm, logout_command
+from handlers.onboarding import chat_member_update, new_chat_member_message, button_handler, handle_join
+from handlers.rank import assign_rank, promoteme, reply_forwarder, demote, myrank, topic_guard
 
-# --- Logging ---
+# --- Logging Setup ---
 logging.basicConfig(
     filename='scamsclub_bot.log',
     filemode='a',
@@ -54,17 +40,19 @@ logging.basicConfig(
 async def healthcheck(request):
     return web.Response(text="✅ Bot is alive!", status=200)
 
-# --- Main ---
+# --- Main App ---
 async def main():
     print("✅ Scam's Club bot is starting...")
+
     app = Application.builder().token(BOT_TOKEN).build()
     await app.bot.set_webhook(WEBHOOK_URL)
     logging.info("Bot started successfully.")
 
+    # Register bot ID if not in DB
     me = await app.bot.get_me()
     create_user_if_not_exists(me.id, me.username, me.first_name)
 
-    # --- Set Bot Commands ---
+    # --- Bot Commands ---
     await app.bot.set_my_commands([
         BotCommand("start", "Show onboarding menu"),
         BotCommand("status", "Check bot health"),
@@ -75,7 +63,6 @@ async def main():
         BotCommand("logs", "View recent bot logs"),
         BotCommand("admin", "Open the admin panel"),
         BotCommand("logout", "Log out of the admin panel"),
-        # …any others you have…
     ])
 
     # --- Command Handlers ---
@@ -88,33 +75,28 @@ async def main():
     app.add_handler(CommandHandler("myrank", myrank))
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
-    
-    # --- Private Admin DM Handler ---
+
+    # --- Admin DMs ---
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_admin_dm), group=0)
 
-    # --- Private Menu ---
+    # --- Private Menu Button Logic ---
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, menu_handler), group=1)
 
-    # --- Join/New Member ---
+    # --- New Member Join / Auto Rank ---
     app.add_handler(ChatJoinRequestHandler(handle_join))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
 
+    # --- Message Reply Forwarder (Promotion Request Replies) ---
+    app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, reply_forwarder))
 
-
-    # --- Reply Forwarder ---
-    app.add_handler(MessageHandler(
-    filters.TEXT & filters.REPLY,
-    reply_forwarder
-    ))
-
-    # --- Topic Guard ---
+    # --- Topic Guard (Anti-spam in restricted threads) ---
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
 
-    # --- Callback Buttons ---
+    # --- Callback Query (Onboarding Buttons) ---
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    # --- Web Server for Webhook ---
+    # --- Web Server Setup ---
     async def telegram_webhook(request):
         try:
             data = await request.json()
@@ -138,6 +120,7 @@ async def main():
     await app.start()
     await asyncio.Event().wait()
 
+# --- Run ---
 if __name__ == "__main__":
     init_db()
     asyncio.run(main())

@@ -1,4 +1,3 @@
-# handlers/general.py
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
@@ -6,13 +5,13 @@ from handlers.admin import admin_panel, logout_command
 from handlers.rank import promoteme, myrank
 from utils.helpers import delete_old_messages, store_message_id
 
-# --- Menu Handler ---
+# --- Menu Handler (reply buttons) ---
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Only handle private chat menu; ignore groups
-    if update.effective_chat.type not in ("private",):
+    if update.effective_chat.type != "private":
         return
 
-    # If admin is authenticated (or in password flow), don't steal their DMs
+    # Don’t interfere with admin login flow
     if context.user_data.get("admin_authenticated") or context.user_data.get("awaiting_admin_password"):
         return
 
@@ -34,28 +33,23 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await logout_command(update, context)
 
     elif text == "🧠 Start Here Guide":
-        await update.message.reply_text(
-            "Start here: https://t.me/c/2286707356/2458"
-        )
+        await update.message.reply_text("Start here: https://t.me/c/2286707356/2458")
 
     elif text == "📘 Restart Onboarding":
-        # If you have a dedicated onboarding start function, call it here.
-        # from handlers.onboarding import start_onboarding
-        # await start_onboarding(update, context)
-        await update.message.reply_text(
-            "Onboarding restart coming soon. Use /start for now."
-        )
+        # You can hook into onboarding logic here
+        await update.message.reply_text("Onboarding restart coming soon. Use /start for now.")
 
-# --- /start ---
+# --- /start command ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # In groups: nudge to DM
     if update.effective_chat.type in ("group", "supergroup"):
-        await update.message.reply_text("👋 DM me privately to access onboarding, rank tools, and more.")
+        await update.message.reply_text(
+            "👋 DM me privately to access onboarding, rank tools, and more."
+        )
         return
 
+    chat_id = update.effective_chat.id
     await delete_old_messages(context, chat_id, keep_last=1)
 
-    # Reply keyboard (no callback_data/url in ReplyKeyboardMarkup)
     reply_kb = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton("📘 Restart Onboarding"), KeyboardButton("🧠 Start Here Guide")],
@@ -71,4 +65,5 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use the buttons below to get started 👇",
         reply_markup=reply_kb
     )
-    store_message_id(context, msg.message_id)
+
+    store_message_id(context, chat_id, msg.message_id)

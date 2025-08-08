@@ -1,6 +1,6 @@
 # utils/helpers.py
 
-from typing import List, Optional
+from typing import List
 from telegram.ext import ContextTypes
 
 # --- Memory ---
@@ -23,40 +23,26 @@ def increment_violation(user_id: int) -> int:
 
 
 def store_message_id(context: ContextTypes.DEFAULT_TYPE, msg_id: int) -> None:
-    """
-    Track a message ID so delete_old_messages can remove it later.
-    IMPORTANT: pass CONTEXT here, not chat_id.
-    """
-    lst: List[int] = context.user_data.get("old_messages", [])
-    lst.append(msg_id)
-    context.user_data["old_messages"] = lst
+    
+    chat_bucket = context.application.chat_data.setdefault(chat_id, {})
+    lst: List[int] = chat_bucket.setdefault("old_messages", [])
+    lst.append(message_id)
 
 
-async def delete_old_messages(
-    context: ContextTypes.DEFAULT_TYPE,
-    chat_id: int,
-    keep_last: int = 0
-) -> None:
+async def delete_old_messages(context, chat_id: int) -> None:
     """
-    Delete previously tracked bot messages for this user/chat.
-    - keep_last: preserve the most recent N tracked messages (default 0 = delete all)
+    Delete previously stored messages for this chat and clear the list.
     """
-    old_ids: List[int] = context.user_data.get("old_messages", [])
-    if not old_ids:
+    chat_bucket = context.application.chat_data.get(chat_id, {})
+    ids: List[int] = chat_bucket.get("old_messages", [])
+    if not ids:
         return
 
-    # If we should preserve the newest N messages, slice accordingly
-    to_delete = old_ids[:-keep_last] if keep_last > 0 else old_ids[:]
-
-    for msg_id in to_delete:
+    for mid in ids:
         try:
-            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            await context.bot.delete_message(chat_id=chat_id, message_id=mid)
         except Exception:
-            # message may already be deleted or too old; ignore
+            # message may already be gone, too old, or insufficient rights—ignore
             pass
 
-    # If keeping some, retain them in the list; else clear all
-    if keep_last > 0:
-        context.user_data["old_messages"] = old_ids[-keep_last:]
-    else:
-        context.user_data["old_messages"] = []
+    chat_bucket["old_messages"] = []

@@ -1,7 +1,7 @@
-# handlers/admin.py
 import csv
 import datetime
 import io
+import logging
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup, InputFile
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ApplicationHandlerStop
@@ -34,7 +34,6 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_type = update.effective_chat.type
 
-    # If used in group/supergroup, gate by ADMIN_ID and instruct to DM
     if chat_type in ("group", "supergroup"):
         if user_id != ADMIN_ID:
             await update.message.reply_text("🚫 You are not authorized.")
@@ -42,16 +41,15 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ DM me privately to access the admin panel.")
         return
 
-    # In DM: if already authenticated, show panel; else request password
     if user_id in logged_in_admins or context.user_data.get("admin_authenticated"):
         sent = await send_admin_panel(update, context)
-        store_message_id(update.effective_chat.id, sent.message_id)
+        store_message_id(context, update.effective_chat.id, sent.message_id)
     else:
         msg = await update.message.reply_text("🔐 Please enter the admin password:")
         context.user_data["awaiting_admin_password"] = True
-        store_message_id(update.effective_chat.id, msg.message_id)
+        store_message_id(context, update.effective_chat.id, msg.message_id)
 
-# --- Unified DM router for admin flows (password + panel actions) ---
+# --- Unified DM router for admin flows ---
 async def handle_admin_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
@@ -66,23 +64,22 @@ async def handle_admin_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logged_in_admins.add(user_id)
 
             ack = await update.message.reply_text("✅ Access granted.")
-            store_message_id(chat_id, ack.message_id)
+            store_message_id(context, chat_id, ack.message_id)
             try:
                 await update.message.delete()
             except Exception:
                 pass
 
             panel_msg = await send_admin_panel(update, context)
-            store_message_id(chat_id, panel_msg.message_id)
+            store_message_id(context, chat_id, panel_msg.message_id)
         else:
             warn = await update.message.reply_text("❌ Incorrect password. Try again.")
-            store_message_id(chat_id, warn.message_id)
+            store_message_id(context, chat_id, warn.message_id)
             try:
                 await update.message.delete()
             except Exception:
                 pass
 
-        # ⛔ stop other handlers (e.g., menu_handler) from firing
         raise ApplicationHandlerStop
 
     if user_id in logged_in_admins or context.user_data.get("admin_authenticated"):
@@ -95,7 +92,7 @@ async def handle_admin_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🔒 Admin area. Use /admin to log in.")
     raise ApplicationHandlerStop
 
-# --- Render & send the admin panel (returns the sent message) ---
+# --- Render admin panel ---
 async def send_admin_panel(update, context):
     chat_id = update.effective_chat.id
     await delete_old_messages(context, chat_id)
@@ -108,8 +105,8 @@ async def send_admin_panel(update, context):
 
     total_users = sum(rank_breakdown.values())
     total_violations = sum(violation_counts.values())
-
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     summary = (
         "<b>👑 Admin Panel Overview</b>\n\n"
         f"👥 Total Users: <code>{total_users}</code>\n"
@@ -118,15 +115,14 @@ async def send_admin_panel(update, context):
         f"\n🕒 Last Boot: <code>{now}</code>"
     )
 
-    sent = await context.bot.send_message(
+    return await context.bot.send_message(
         chat_id=chat_id,
         text=summary,
         parse_mode="HTML",
         reply_markup=admin_keyboard,
     )
-    return sent
 
-# --- Admin panel action router ---
+# --- Handle panel selections ---
 async def handle_admin_text_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in logged_in_admins and not context.user_data.get("admin_authenticated"):
         await update.message.reply_text("🔒 Session expired. Please /admin again.")
@@ -162,26 +158,25 @@ async def handle_admin_text_selection(update: Update, context: ContextTypes.DEFA
         await logout_command(update, context)
 
     else:
-        # Unknown text in admin DM — ignore or gently prompt
         await update.message.reply_text("❓ Not sure what you meant. Use the buttons or /admin.")
 
-# --- Export users to CSV (in-memory, no disk writes) ---
+# --- Export to CSV in-memory ---
 async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    users = get_all_users()  # iterable of (id, username, first_name)
+    users = get_all_users()
 
     if not users:
         await update.message.reply_text("⚠️ No users found to export.")
         return
 
-    # Create CSV in memory
+    # Write CSV in memory
     text_buffer = io.StringIO()
     writer = csv.writer(text_buffer)
     writer.writerow(["ID", "Username", "First Name"])
-    for row in users:
-        writer.writerow(row)
+    for user_id, username, first_name in users:
+        writer.writerow([user_id, username or "", first_name or ""])
     text_buffer.seek(0)
 
-    # Convert to bytes for Telegram
+    # Convert to bytes and send
     bytes_buffer = io.BytesIO(text_buffer.getvalue().encode("utf-8"))
     bytes_buffer.name = "exported_users.csv"
 
@@ -190,7 +185,7 @@ async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
         caption="📤 Exported user data.",
     )
 
-# --- Logout ---
+# --- Logout Admin ---
 async def logout_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id in logged_in_admins:

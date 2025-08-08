@@ -5,21 +5,25 @@ DB_FILE = os.getenv("DB_FILE", "scamsclub.sqlite")
 
 # --- Init ---
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            username TEXT,
-            first_name TEXT,
-            rank TEXT DEFAULT 'Lookout',
-            learning_path TEXT,
-            experience TEXT,
-            interest TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                rank TEXT DEFAULT 'Lookout',
+                learning_path TEXT,
+                experience TEXT,
+                interest TEXT
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Error initializing DB: {e}")
+    finally:
+        conn.close()
 
 # --- Create if doesn't exist ---
 def create_user_if_not_exists(user_id, username, first_name):
@@ -32,7 +36,6 @@ def create_user_if_not_exists(user_id, username, first_name):
             (user_id, username, first_name),
         )
     else:
-        # keep username/first_name fresh if they changed
         c.execute(
             "UPDATE users SET username = ?, first_name = ? WHERE id = ?",
             (username, first_name, user_id),
@@ -40,7 +43,7 @@ def create_user_if_not_exists(user_id, username, first_name):
     conn.commit()
     conn.close()
 
-# --- Set rank ---
+# --- Set user rank ---
 def set_user_rank(user_id, rank):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -57,7 +60,7 @@ def get_user_rank(user_id):
     conn.close()
     return row[0] if row else None
 
-# --- Count users by rank (from users table) ---
+# --- Count users by rank ---
 def get_user_count_by_rank():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -70,7 +73,7 @@ def get_user_count_by_rank():
     conn.close()
     return dict(rows)
 
-# --- Onboarding Update ---
+# --- Update onboarding fields ---
 def update_onboarding(user_id, learning_path=None, experience=None, interest=None):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -83,7 +86,7 @@ def update_onboarding(user_id, learning_path=None, experience=None, interest=Non
     conn.commit()
     conn.close()
 
-# --- Get Summary ---
+# --- Fetch full onboarding summary ---
 def get_onboarding_summary(user_id):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()

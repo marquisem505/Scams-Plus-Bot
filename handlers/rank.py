@@ -14,7 +14,12 @@ from utils.constants import (
     rank_access_topics
 )
 
-from utils.helpers import increment_violation, delete_old_messages, store_message_id
+from utils.helpers import (
+    increment_violation,
+    delete_old_messages,
+    store_message_id,
+    violation_counts  # Make sure this is imported!
+)
 
 # --- Topic Guard ---
 async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -28,7 +33,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     allowed_topics = rank_access_topics.get(user_rank, [])
 
     if topic_id not in allowed_topics:
-        increment_violation(uid)
+        count = increment_violation(uid)
 
         try:
             await update.message.delete()
@@ -44,7 +49,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
                 ])
             )
-            store_message_id(GROUP_ID, warn_msg.message_id)
+            store_message_id(context, GROUP_ID, warn_msg.message_id)
         except Exception as e:
             logging.warning(f"⚠️ Failed to warn user in group thread: {e}")
 
@@ -58,11 +63,11 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ),
                 parse_mode="Markdown"
             )
-            store_message_id(uid, dm_msg.message_id)
+            store_message_id(context, uid, dm_msg.message_id)
         except Exception as e:
             logging.warning(f"❌ Failed to DM user @{username}: {e}")
 
-        if violation_counts[uid] >= 3:
+        if count >= 3:
             try:
                 await context.bot.restrict_chat_member(
                     chat_id=GROUP_ID,
@@ -73,7 +78,7 @@ async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=uid,
                     text="🔇 You’ve been muted for repeated violations. Contact an admin to appeal."
                 )
-                store_message_id(uid, muted_msg.message_id)
+                store_message_id(context, uid, muted_msg.message_id)
             except Exception as e:
                 logging.warning(f"🚫 Could not mute @{username}: {e}")
 
@@ -88,7 +93,7 @@ async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Your desired rank\n\n"
         "✅ After replying, an admin will be notified."
     )
-    store_message_id(update.effective_chat.id, msg.message_id)
+    store_message_id(context, update.effective_chat.id, msg.message_id)
 
 # --- Forward Promote Me Replies ---
 async def reply_forwarder(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -104,11 +109,11 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.effective_user.id != ADMIN_ID:
         msg = await update.message.reply_text("❌ Not authorized.")
-        return store_message_id(update.effective_chat.id, msg.message_id)
+        return store_message_id(context, update.effective_chat.id, msg.message_id)
 
     if len(context.args) < 2:
         msg = await update.message.reply_text("Usage: /assignrank <@username> <Rank>")
-        return store_message_id(update.effective_chat.id, msg.message_id)
+        return store_message_id(context, update.effective_chat.id, msg.message_id)
 
     username = context.args[0].lstrip('@')
     rank = context.args[1].capitalize()
@@ -120,7 +125,7 @@ async def assign_rank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg = await update.message.reply_text(f"⚠️ User @{username} not found in database.")
 
-    store_message_id(update.effective_chat.id, msg.message_id)
+    store_message_id(context, update.effective_chat.id, msg.message_id)
 
 # --- Demote Rank ---
 async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,11 +133,11 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.effective_user.id != ADMIN_ID:
         msg = await update.message.reply_text("❌ Not authorized.")
-        return store_message_id(update.effective_chat.id, msg.message_id)
+        return store_message_id(context, update.effective_chat.id, msg.message_id)
 
     if len(context.args) < 1:
         msg = await update.message.reply_text("Usage: /demote <@username>")
-        return store_message_id(update.effective_chat.id, msg.message_id)
+        return store_message_id(context, update.effective_chat.id, msg.message_id)
 
     username = context.args[0].lstrip('@')
     uid = get_user_id_by_username(username)
@@ -143,7 +148,7 @@ async def demote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg = await update.message.reply_text(f"⚠️ User @{username} not found in database.")
 
-    store_message_id(update.effective_chat.id, msg.message_id)
+    store_message_id(context, update.effective_chat.id, msg.message_id)
 
 # --- My Rank ---
 async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -153,4 +158,4 @@ async def myrank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rank = get_user_rank(uid) or "❌ Unranked"
     msg = await update.message.reply_text(f"🏷 Your current rank: `{rank}`", parse_mode="Markdown")
 
-    store_message_id(update.effective_chat.id, msg.message_id)
+    store_message_id(context, update.effective_chat.id, msg.message_id)
