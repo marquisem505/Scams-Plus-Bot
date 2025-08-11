@@ -91,7 +91,13 @@ async def main():
     app.add_handler(CommandHandler("logs", view_logs))
 
     # --- Admin DMs ---
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_admin_dm), group=1)
+    app.add_handler(
+    MessageHandler(
+        filters.ChatType.PRIVATE & filters.Regex(r"^/admin") ,
+        handle_admin_dm
+    ),
+    group=5
+    )
 
     # --- Private Menu Button Logic ---
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, menu_handler), group=2)
