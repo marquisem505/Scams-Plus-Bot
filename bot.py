@@ -26,7 +26,7 @@ from handlers.status import status_command
 from handlers.general import start_command, menu_handler
 from handlers.admin import admin_panel, handle_admin_dm, logout_command
 from handlers.onboarding import chat_member_update, new_chat_member_message, button_handler, handle_join
-from handlers.rank import assign_rank, promoteme, reply_forwarder, demote, myrank, topic_guard
+from handlers.rank import assign_rank, promoteme, reply_forwarder, demote, myrank, topic_guard, promoteme_button_handler
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -95,6 +95,7 @@ async def main():
 
     # --- Callback Query (Onboarding Buttons) ---
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(CallbackQueryHandler(promoteme_button_handler, pattern="^promoteme$"))
 
     # --- Web Server Setup ---
     async def telegram_webhook(request):
