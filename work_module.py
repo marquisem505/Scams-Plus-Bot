@@ -329,32 +329,35 @@ async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return ConversationHandler.END
-    choice = (update.message.text or "").strip()
-    if not choice.isdigit():
-        await update.message.reply_text("Please send a numeric base *ID*.", parse_mode="Markdown")
-        return LOOKUP_CHOOSE_BASE
 
-    bases = context.user_data.get("lookup", {}).get("bases", [])
+    # user types the lookup TYPE (name), not an ID
     choice_lower = (update.message.text or "").strip().lower()
+    bases = context.user_data.get("lookup", {}).get("bases", [])
     base = None
     for b in bases:
         if not isinstance(b, dict):
             continue
         bid = int(b.get("id"))
-        emoji, label = SP_BASE_COPY.get(bid, ("", b.get("name", "")))
-        if choice_lower == label.lower():
+        _emoji, label = SP_BASE_COPY.get(bid, ("", b.get("name", "")))
+        if label and choice_lower == label.lower():
             base = b
             break
 
-if not base:
-    await update.message.reply_text("Not found. Send the exact lookup type from the list above.")
-    return LOOKUP_CHOOSE_BASE
+    if not base:
+        await update.message.reply_text(
+            "Not found. Reply with the *lookup type* exactly as shown above.",
+            parse_mode="Markdown"
+        )
+        return LOOKUP_CHOOSE_BASE
 
-    context.user_data["lookup"]["base_id"] = int(choice)
-    context.user_data["lookup"]["base_name"] = base.get("name", "Unknown")
+    # store internal id + display name (no IDs shown to user)
+    bid = int(base.get("id"))
+    _emoji, label = SP_BASE_COPY.get(bid, ("", base.get("name", "Unknown")))
+    context.user_data["lookup"]["base_id"] = bid
+    context.user_data["lookup"]["base_name"] = label
 
     guide = (
-        f"Chosen base: *{base.get('name','Unknown')}* (ID {choice}).\n\n"
+        f"Chosen lookup: *{label}*.\n\n"
         "Now send your parameters as `key=value` pairs separated by spaces.\n"
         "Use quotes for multi-word values. Examples:\n"
         "`firstname=John lastname=Doe dob=01/02/1990 zip=48235`\n"
