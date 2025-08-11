@@ -55,6 +55,14 @@ async def main():
     register_bender_handlers(app)  # adds /checkbalance, /searchdata, etc.
     await bender_init(app)         # sets up SQLite + resumes any pending polls
 
+    # Ensure JobQueue is available (needed for auto-polling and conversation timeouts)
+    if app.job_queue is None:
+        logging.warning(
+            "No JobQueue detected. Install python-telegram-bot[job-queue] to enable polling/timeouts."
+        )
+    else:
+        logging.info("JobQueue active.")
+
 # --- Set Webhook ---
     await app.bot.set_webhook(WEBHOOK_URL)
     logging.info("Bot started successfully.")
@@ -90,9 +98,12 @@ async def main():
     app.add_handler(CommandHandler("promoteme", promoteme))
     app.add_handler(CommandHandler("logs", view_logs))
 
-    # --- Admin DMs ---
+    # --- Admin DMs (restricted; do not intercept lookup replies) ---
     app.add_handler(
-        MessageHandler(filters.ChatType.PRIVATE & filters.Regex(r"^/admin\b"), admin_cmd),
+        MessageHandler(
+            filters.ChatType.PRIVATE & filters.Regex(r"^/admin\b"),
+            admin_panel,
+        ),
         group=5,
     )
 
@@ -105,10 +116,22 @@ async def main():
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
 
     # --- Message Reply Forwarder (Promotion Request Replies) ---
-    app.add_handler(MessageHandler(filters.TEXT & filters.REPLY, reply_forwarder))
+    app.add_handler(
+        MessageHandler(
+            filters.ChatType.GROUPS & filters.TEXT & filters.REPLY,
+            reply_forwarder,
+        ),
+        group=6,
+    )
 
     # --- Topic Guard (Anti-spam in restricted threads) ---
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), topic_guard))
+    app.add_handler(
+        MessageHandler(
+            filters.ChatType.GROUPS & filters.TEXT & ~filters.COMMAND,
+            topic_guard,
+        ),
+        group=7,
+    )
 
     # --- Callback Query (Onboarding Buttons) ---
     app.add_handler(CallbackQueryHandler(button_handler))
