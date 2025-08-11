@@ -56,7 +56,7 @@ async def topic_guard(update, context):
         logging.warning(f"Rank lookup failed for {uid}: {e}")
         user_rank = "Lookout"
 
-    allowed_topics = rank_access_topics.get(user_rank, [])
+    allowed_topics = set(rank_access_topics.get(user_rank, []))
     if topic_id in allowed_topics:
         return  # allowed, do nothing
 
@@ -68,6 +68,18 @@ async def topic_guard(update, context):
         await msg.delete()
     except Exception as e:
         logging.warning(f"❌ Couldn't delete message from @{username} in topic {topic_id}: {e}")
+
+# --- Warn User ---
+    key = f"tg_warn:{uid}:{topic_id}"
+    last = context.chat_data.get(key)
+    if last and (context.application.time() - last) < 15:
+        # already warned in this topic within last 15s
+        pass
+    else:
+        # send thread warning
+        warn = await context.bot.send_message(...)
+        store_message_id(context, GROUP_ID, warn.message_id)
+        context.chat_data[key] = context.application.time()
 
     # Public warning in the same topic (best-effort)
     try:
@@ -113,6 +125,8 @@ async def topic_guard(update, context):
             logging.info(f"🔇 Auto-muted user {uid} after {violation_counts.get(uid)} violations.")
     except Exception as e:
         logging.warning(f"🚫 Could not mute @{username}: {e}")
+
+logging.debug(f"TopicGuard allow @{username} ({user_rank}) in topic {topic_id}")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
