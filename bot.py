@@ -65,11 +65,9 @@ async def main():
 
     # --- Bot Commands ---
     await app.bot.set_my_commands([
-        BotCommand("mybalance", "Show Bender balance"),
+        BotCommand("mybalance", "Show balance"),
         BotCommand("bases", "List available search bases"),
-        BotCommand("lookup", "Step-by-step search wizard"),
-        BotCommand("searchdata", "Submit raw key=value search"),
-        BotCommand("checkresult", "Fetch result by search_id"),
+        BotCommand("lookup", "Lookup wizard"),
         BotCommand("start", "Show onboarding menu"),
         BotCommand("status", "Check bot health"),
         BotCommand("promoteme", "Request a rank promotion"),

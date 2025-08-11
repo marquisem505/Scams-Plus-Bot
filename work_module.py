@@ -22,6 +22,8 @@ _TIMEOUT = ClientTimeout(total=API_TIMEOUT)
 PENDING_STATUSES = {"PENDING", "IN_PROGRESS", "PROCESSING", "QUEUED", "RUNNING", "WAITING"}
 POLL_INTERVALS = [5, 10, 20, 30, 60, 120]  # seconds, exponential-ish backoff
 
+
+
 # NEW: states for /lookup wizard
 LOOKUP_CHOOSE_CAT, LOOKUP_CHOOSE_BASE, LOOKUP_ENTER_PARAMS = range(3)
 
@@ -166,7 +168,7 @@ CANCEL_BTN = "✖️ Cancel"
 def _category_keyboard() -> ReplyKeyboardMarkup:
     rows = [SP_CATEGORY_ORDER[i:i+2] for i in range(0, len(SP_CATEGORY_ORDER), 2)]
     rows.append([CANCEL_BTN])
-    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False, is_persistent=True)
 
 def _button_text_for(bid: int, price_val) -> str:
     label = SP_LABELS.get(bid, "Lookup")
@@ -198,7 +200,7 @@ def _lookup_keyboard_for_category(cat: str, bases: List[Dict[str, Any]]) -> Tupl
 
     rows = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
     rows.append([BACK_BTN, CANCEL_BTN])
-    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False), text_to_id
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False, is_persistent=True), text_to_id
 
 # ------------- Utils -------------
 async def _send_long_markdown(chat_id: int, text: str, app: Application):
@@ -378,6 +380,10 @@ async def checkresult_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Result error: {type(e).__name__}: {e}")
 
 # ------------- /lookup wizard helpers & handlers -------------
+
+async def _get_bases() -> List[Dict[str, Any]]:
+    res = await _post(AVAILABLE_BASE_URL)
+    return res if isinstance(res, list) else []
 
 async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
@@ -581,18 +587,18 @@ def register_bender_handlers(app: Application):
 
     # /lookup wizard
     lookup_conv = ConversationHandler(
-        entry_points=[CommandHandler("lookup", lookup_start)],
-        states={
-            LOOKUP_CHOOSE_CAT:  [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_choose_cat)],
-            LOOKUP_CHOOSE_BASE: [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_choose_base)],
-            LOOKUP_ENTER_PARAMS:[MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_enter_params)],
-        },
-        fallbacks=[CommandHandler("cancel", lookup_cancel)],
-        conversation_timeout=300,
-        name="lookup_wizard",
-        persistent=False,
-    )
-    app.add_handler(lookup_conv)
+    entry_points=[CommandHandler("lookup", lookup_start, filters=filters.ChatType.PRIVATE)],
+    states={
+        LOOKUP_CHOOSE_CAT:  [MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, lookup_choose_cat)],
+        LOOKUP_CHOOSE_BASE: [MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, lookup_choose_base)],
+        LOOKUP_ENTER_PARAMS:[MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, lookup_enter_params)],
+    },
+    fallbacks=[CommandHandler("cancel", lookup_cancel, filters=filters.ChatType.PRIVATE)],
+    conversation_timeout=300,
+    name="lookup_wizard",
+    persistent=False,
+)
+app.add_handler(lookup_conv, group=0)  # make sure admin handlers are group=1+
 
 async def bender_init(app: Application):
     """Call once on startup (before app.start) to init DB and resume pending jobs."""
