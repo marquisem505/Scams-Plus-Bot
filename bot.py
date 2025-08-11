@@ -25,7 +25,7 @@ from handlers.logs import view_logs
 from handlers.status import status_command
 from handlers.general import start_command, menu_handler
 from handlers.admin import admin_panel, handle_admin_dm, logout_command
-from handlers.onboarding import chat_member_update, new_chat_member_message, button_handler, handle_join
+from handlers.onboarding import chat_member_update, new_chat_member_message, button_handler, handle_join_request
 from handlers.rank import assign_rank, promoteme, reply_forwarder, demote, myrank, topic_guard, promoteme_button_handler
 
 # --- Logging Setup ---
@@ -83,7 +83,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, menu_handler), group=1)
 
     # --- New Member Join / Auto Rank ---
-    app.add_handler(ChatJoinRequestHandler(handle_join))
+    app.add_handler(ChatJoinRequestHandler(handle_join_request))
     app.add_handler(ChatMemberHandler(chat_member_update, ChatMemberHandler.CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, new_chat_member_message))
 

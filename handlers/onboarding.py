@@ -33,6 +33,47 @@ async def handle_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         )
 
+# --- Handle Join Requests (Auto-approve + Rank) ---
+async def handle_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    jr = update.chat_join_request  # type: ignore[attr-defined]
+    if not jr:
+        return
+
+    user = jr.from_user
+
+    # approve request
+    try:
+        await context.bot.approve_chat_join_request(chat_id=jr.chat.id, user_id=user.id)
+    except Exception as e:
+        logging.warning(f"Failed to approve join request for {user.id}: {e}")
+        return
+
+    # record + rank
+    try:
+        create_user_if_not_exists(user.id, user.username, user.first_name)
+        set_user_rank(user.id, "Lookout")
+    except Exception as e:
+        logging.warning(f"Failed to set default rank for {user.id}: {e}")
+
+    # DM the user (best-effort)
+    try:
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="Welcome to Scam's Plus! You've been assigned the rank: Lookout."
+        )
+    except Exception:
+        pass
+
+    # optional: ping admin
+    try:
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"👤 {user.first_name} (@{user.username or 'NoUsername'}) was approved and auto-ranked to Lookout."
+        )
+    except Exception:
+        pass
+
+
 # --- Welcome Message (for non-chat_member updates) ---
 async def new_chat_member_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
