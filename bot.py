@@ -2,8 +2,12 @@
 import os
 import asyncio
 import logging
-from work_module import register_bender_handlers, bender_init
 from dotenv import load_dotenv
+
+# Load environment variables early
+load_dotenv()
+
+from work_module import register_bender_handlers, bender_init
 from aiohttp import web
 from telegram import Update, BotCommand
 from telegram.ext import (
