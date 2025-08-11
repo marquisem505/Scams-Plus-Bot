@@ -5,7 +5,6 @@ from aiohttp import ClientSession, ClientTimeout
 import aiosqlite
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, Job
-# NEW: imports for the /lookup wizard
 from telegram.ext import ConversationHandler, MessageHandler, filters
 
 API_KEY = os.getenv("API_KEY", "").strip()
@@ -25,6 +24,51 @@ POLL_INTERVALS = [5, 10, 20, 30, 60, 120]  # seconds, exponential-ish backoff
 
 # NEW: states for /lookup wizard
 LOOKUP_CHOOSE_BASE, LOOKUP_ENTER_PARAMS = range(2)
+
+# --- Scam's Plus Brand Styling ---
+SP_HEADER = "🔥 Scam’s Plus Lookups"
+SP_SUB    = "_Choose your lookup. Prices update live._"
+
+# Base ID → (emoji, display name)
+SP_BASE_COPY = {
+    1:  ("💳", "SSN + DOB (ZIP)"),
+    23: ("💳", "SSN + DOB (Nationwide)"),
+    2:  ("📍", "SSN (ZIP)"),
+    3:  ("🏙️", "SSN (City)"),
+    4:  ("🗺️", "SSN (State)"),
+    22: ("🪪", "Driver License"),
+    100:("📄", "Credit Report (TU)"),
+    102:("📄", "Credit Report (WalletHub)"),
+    104:("👩‍👦", "Mother’s Maiden Name"),
+    20: ("📊", "Consumer Snapshot"),
+    10: ("💊", "DEA License"),
+    11: ("🚗", "Advanced DL"),
+    14: ("🎓", "Pro License"),
+    15: ("🏢", "Business Profile"),
+    16: ("🔍", "Reverse SSN"),
+    29: ("🕵️", "Background + DOB"),
+    24: ("📞", "Reverse Phone"),
+    25: ("📧", "Reverse Email"),
+    26: ("☎️", "Reverse Phone (Alt)"),
+    27: ("🏠", "Reverse Address"),
+    28: ("✏️", "Address Autocomplete"),
+    61: ("❓", "Email Reputation"),
+}
+
+def _price_str(v) -> str:
+    try:
+        p = float(v)
+        if p >= 1000:
+            p = p / 100.0
+        return f"${p:.2f}"
+    except Exception:
+        return str(v)
+
+def _sp_line(item: dict) -> str:
+    """Return emoji + lookup type + price, no ID."""
+    bid = int(item.get("id", 0))
+    emoji, label = SP_BASE_COPY.get(bid, ("🛠️", item.get("name", "")))
+    return f"{emoji} {label} — {_price_str(item.get('price', '—'))}"
 
 # ------------- DB -------------
 async def init_db():
@@ -180,29 +224,18 @@ async def mybalance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await balance_cmd(update, context)
 
 async def bases_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """List available bases + USD prices."""
-    if not update.message: return
+    if not update.message:
+        return
     try:
         res = await _post(AVAILABLE_BASE_URL)
-        # API returns list of {id, name, price}
         if isinstance(res, list) and res:
-            lines = ["📚 *Available Bases*"]
+            lines = [SP_HEADER, SP_SUB, ""]
             for item in res:
-                if not isinstance(item, dict): continue
-                bid = item.get("id", "—")
-                name = item.get("name", "—")
-                # docs say price in USD; some APIs send cents. If >= 1000 assume cents.
-                price = item.get("price")
-                try:
-                    p = float(price)
-                    p = p/100 if p >= 1000 else p
-                    price_str = f"${p:.2f}"
-                except:
-                    price_str = str(price)
-                lines.append(f"- `{bid}` — *{name}* — {price_str}")
+                if isinstance(item, dict):
+                    lines.append(_sp_line(item))
             await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
         else:
-            await update.message.reply_text("No bases returned.")
+            await update.message.reply_text(f"{SP_HEADER}\nNo lookups available.")
     except Exception as e:
         await update.message.reply_text(f"Bases error: {type(e).__name__}: {e}")
 
@@ -269,22 +302,12 @@ async def checkresult_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ------------- /lookup wizard helpers & handlers -------------
 def _format_bases(res: Any) -> str:
     if not isinstance(res, list) or not res:
-        return "No bases returned."
-    lines = ["📚 *Available Bases*"]
+        return f"{SP_HEADER}\nNo lookups available."
+    lines = [SP_HEADER, SP_SUB, ""]
     for item in res:
-        if not isinstance(item, dict):
-            continue
-        bid = item.get("id", "—")
-        name = item.get("name", "—")
-        price = item.get("price", "—")
-        try:
-            p = float(price)
-            p = p/100 if p >= 1000 else p
-            price = f"${p:.2f}"
-        except:
-            price = str(price)
-        lines.append(f"- `{bid}` — *{name}* — {price}")
-    lines.append("\nReply with the *ID* of the base you want to use.")
+        if isinstance(item, dict):
+            lines.append(_sp_line(item))
+    lines.append("\nReply with the *lookup type* exactly as shown above.")
     return "\n".join(lines)
 
 async def _get_bases() -> List[Dict[str, Any]]:
@@ -312,11 +335,20 @@ async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return LOOKUP_CHOOSE_BASE
 
     bases = context.user_data.get("lookup", {}).get("bases", [])
-    base_map = {str(b.get("id")): b for b in bases if isinstance(b, dict)}
-    base = base_map.get(choice)
-    if not base:
-        await update.message.reply_text("Invalid base ID. Send one from the list above.")
-        return LOOKUP_CHOOSE_BASE
+    choice_lower = (update.message.text or "").strip().lower()
+    base = None
+    for b in bases:
+        if not isinstance(b, dict):
+            continue
+        bid = int(b.get("id"))
+        emoji, label = SP_BASE_COPY.get(bid, ("", b.get("name", "")))
+        if choice_lower == label.lower():
+            base = b
+            break
+
+if not base:
+    await update.message.reply_text("Not found. Send the exact lookup type from the list above.")
+    return LOOKUP_CHOOSE_BASE
 
     context.user_data["lookup"]["base_id"] = int(choice)
     context.user_data["lookup"]["base_name"] = base.get("name", "Unknown")
