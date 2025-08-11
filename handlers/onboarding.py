@@ -171,3 +171,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rank = get_user_rank(user_id) or "Unranked"
         msg = await query.message.reply_text(f"🏷 Your rank: `{rank}`", parse_mode="Markdown")
         store_message_id(context, chat_id, msg.message_id)
+
+    elif query.data == "promoteme":
+        # Reuse the same flow as the /promoteme command
+        from handlers.rank import promoteme
+        await promoteme(update, context)  

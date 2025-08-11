@@ -23,75 +23,96 @@ from utils.helpers import (
 )
 
 # --- Topic Guard ---
-async def topic_guard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Be defensive in case a non-message update slips through
-    if not getattr(update, "message", None):
+async def topic_guard(update, context):
+    """
+    Enforce topic access by rank in the main group.
+    Triggers only for text (your bot.py already filters TEXT & ~COMMAND).
+    """
+
+    chat = update.effective_chat
+    msg = update.effective_message  # safer alias
+    user = update.effective_user
+
+    # Hard guards: wrong chat, no message, no thread, bots/service msgs
+    if not chat or chat.id != GROUP_ID:
         return
-    if update.message.chat_id != GROUP_ID or update.message.message_thread_id is None:
+    if not msg or getattr(msg, "message_thread_id", None) is None:
+        return
+    if not user or getattr(user, "is_bot", False):
         return
 
-    uid = update.effective_user.id
-    username = update.effective_user.username or "Unknown"
-    topic_id = update.message.message_thread_id
-    user_rank = get_user_rank(uid) or "Lookout"
+    uid = user.id
+    username = user.username or "Unknown"
+    topic_id = msg.message_thread_id
+
+    # Admin bypass
+    if uid == ADMIN_ID:
+        return
+
+    # Get rank safely; default to Lookout on any issue
+    try:
+        user_rank = get_user_rank(uid) or "Lookout"
+    except Exception as e:
+        logging.warning(f"Rank lookup failed for {uid}: {e}")
+        user_rank = "Lookout"
+
     allowed_topics = rank_access_topics.get(user_rank, [])
+    if topic_id in allowed_topics:
+        return  # allowed, do nothing
 
-    if topic_id not in allowed_topics:
-        count = increment_violation(uid)
+    # Record violation count
+    count = increment_violation(uid)
 
-        # Try to delete the offending message
-        try:
-            await update.message.delete()
-        except Exception as e:
-            logging.warning(f"❌ Couldn't delete message from @{username}: {e}")
+    # Delete offending message (best-effort)
+    try:
+        await msg.delete()
+    except Exception as e:
+        logging.warning(f"❌ Couldn't delete message from @{username} in topic {topic_id}: {e}")
 
-        # Public warning in the same topic
-        try:
-            warn_msg = await context.bot.send_message(
-                chat_id=GROUP_ID,
-                message_thread_id=topic_id,
-                text=(
-                    f"⚠️ @{username}, you're not allowed to post in this topic "
-                    f"at your current rank ({user_rank})."
-                ),
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
-                ])
-            )
-            store_message_id(context, GROUP_ID, warn_msg.message_id)
-        except Exception as e:
-            logging.warning(f"⚠️ Failed to warn user in group thread: {e}")
+    # Public warning in the same topic (best-effort)
+    try:
+        warn = await context.bot.send_message(
+            chat_id=GROUP_ID,
+            message_thread_id=topic_id,
+            text=(
+                f"⚠️ @{username}, you're not allowed to post in this topic at your current rank "
+                f"(*{user_rank}*). Use the button to request a promotion."
+            ),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📤 Request Promotion", callback_data="promoteme")]
+            ]),
+            parse_mode="Markdown"
+        )
+        store_message_id(context, GROUP_ID, warn.message_id)
+    except Exception as e:
+        logging.warning(f"⚠️ Failed to warn @{username} in topic {topic_id}: {e}")
 
-        # Private DM to user
-        try:
-            dm_msg = await context.bot.send_message(
-                chat_id=uid,
-                text=(
-                    f"🚫 You tried posting in a restricted topic (ID: `{topic_id}`).\n"
-                    f"Your current rank is: *{user_rank}*\n\n"
-                    f"Use /promoteme in the group to request a rank promotion if needed."
-                ),
-                parse_mode="Markdown",
-            )
-            store_message_id(context, uid, dm_msg.message_id)
-        except Exception as e:
-            logging.warning(f"❌ Failed to DM user @{username}: {e}")
+    # Private DM (best-effort)
+    try:
+        dm = await context.bot.send_message(
+            chat_id=uid,
+            text=(
+                f"🚫 You tried posting in a restricted topic (ID: `{topic_id}`).\n"
+                f"Your current rank is: *{user_rank}*\n\n"
+                f"Use /promoteme in the group to request a rank promotion if needed."
+            ),
+            parse_mode="Markdown"
+        )
+        store_message_id(context, uid, dm.message_id)
+    except Exception as e:
+        logging.warning(f"❌ Failed to DM user @{username}: {e}")
 
-        # Optional mute after 3+ violations
+    # Optional auto-mute after 3+ violations (best-effort)
+    try:
         if violation_counts.get(uid, 0) >= 3:
-            try:
-                await context.bot.restrict_chat_member(
-                    chat_id=GROUP_ID,
-                    user_id=uid,
-                    permissions=ChatPermissions(can_send_messages=False),
-                )
-                muted_msg = await context.bot.send_message(
-                    chat_id=uid,
-                    text="🔇 You’ve been muted for repeated violations. Contact an admin to appeal.",
-                )
-                store_message_id(context, uid, muted_msg.message_id)
-            except Exception as e:
-                logging.warning(f"🚫 Could not mute @{username}: {e}")
+            await context.bot.restrict_chat_member(
+                chat_id=GROUP_ID,
+                user_id=uid,
+                permissions=ChatPermissions(can_send_messages=False)
+            )
+            logging.info(f"🔇 Auto-muted user {uid} after {violation_counts.get(uid)} violations.")
+    except Exception as e:
+        logging.warning(f"🚫 Could not mute @{username}: {e}")
 
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
