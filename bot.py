@@ -2,6 +2,7 @@
 import os
 import asyncio
 import logging
+from work_module import register_bender_handlers, bender_init
 from dotenv import load_dotenv
 from aiohttp import web
 from telegram import Update, BotCommand
@@ -45,6 +46,12 @@ async def main():
     print("✅ Scam's Club bot is starting...")
 
     app = Application.builder().token(BOT_TOKEN).build()
+
+# --- Register Bender handlers + init ---
+    register_bender_handlers(app)  # adds /checkbalance, /searchdata, etc.
+    await bender_init(app)         # sets up SQLite + resumes any pending polls
+
+# --- Set Webhook ---
     await app.bot.set_webhook(WEBHOOK_URL)
     logging.info("Bot started successfully.")
 
