@@ -126,8 +126,6 @@ async def topic_guard(update, context):
     except Exception as e:
         logging.warning(f"🚫 Could not mute @{username}: {e}")
 
-logging.debug(f"TopicGuard allow @{username} ({user_rank}) in topic {topic_id}")
-
 # --- Promote Me ---
 async def promoteme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await delete_old_messages(context, update.effective_chat.id)
