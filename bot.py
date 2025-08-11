@@ -97,7 +97,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_admin_dm), group=1)
 
     # --- Private Menu Button Logic ---
-    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, menu_handler), group=)
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, menu_handler), group=2)
 
     # --- New Member Join / Auto Rank ---
     app.add_handler(ChatJoinRequestHandler(handle_join_request))
