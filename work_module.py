@@ -597,8 +597,8 @@ def register_bender_handlers(app: Application):
     conversation_timeout=300,
     name="lookup_wizard",
     persistent=False,
-)
-app.add_handler(lookup_conv, group=0)  # make sure admin handlers are group=1+
+    )
+    app.add_handler(lookup_conv, group=0)  # make sure admin handlers are group=1+
 
 async def bender_init(app: Application):
     """Call once on startup (before app.start) to init DB and resume pending jobs."""
