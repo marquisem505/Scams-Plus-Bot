@@ -1,24 +1,30 @@
 # bender_module.py — persistent auto-polling for Bender API (PTB v21+)
-import os, json, shlex, time
+import os, json, shlex, time, math
 from typing import Dict, Any, Optional, List, Tuple
 from aiohttp import ClientSession, ClientTimeout
 import aiosqlite
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes, Job
+# NEW: imports for the /lookup wizard
+from telegram.ext import ConversationHandler, MessageHandler, filters
 
 API_KEY = os.getenv("API_KEY", "").strip()
 API_TIMEOUT = float(os.getenv("API_TIMEOUT", "15"))
 
-BALANCE_URL    = os.getenv("BALANCE_URL", "https://bender-search.ru/apiv1/check_balance").strip()
-SEARCHDATA_URL = os.getenv("SEARCHDATA_URL", "https://bender-search.ru/apiv1/search_data").strip()
-RESULT_URL     = os.getenv("RESULT_URL", "https://bender-search.ru/apiv1/result").strip()
+BALANCE_URL       = os.getenv("BALANCE_URL", "https://bender-search.ru/apiv1/check_balance").strip()
+AVAILABLE_BASE_URL= os.getenv("AVAILABLE_BASE_URL", "https://bender-search.ru/apiv1/aviable_base").strip()
+SEARCHDATA_URL    = os.getenv("SEARCHDATA_URL", "https://bender-search.ru/apiv1/search_data").strip()
+RESULT_URL        = os.getenv("RESULT_URL", "https://bender-search.ru/apiv1/result").strip()
 
 DB_PATH = os.getenv("BENDER_DB", "bender_jobs.db")
 
 _TIMEOUT = ClientTimeout(total=API_TIMEOUT)
 
-PENDING_STATUSES = {"PENDING", "IN_PROGRESS", "PROCESSING", "QUEUED"}
+PENDING_STATUSES = {"PENDING", "IN_PROGRESS", "PROCESSING", "QUEUED", "RUNNING", "WAITING"}
 POLL_INTERVALS = [5, 10, 20, 30, 60, 120]  # seconds, exponential-ish backoff
+
+# NEW: states for /lookup wizard
+LOOKUP_CHOOSE_BASE, LOOKUP_ENTER_PARAMS = range(2)
 
 # ------------- DB -------------
 async def init_db():
@@ -72,6 +78,21 @@ async def db_get_pending() -> List[Tuple[str, int, int, int]]:
         await cur.close()
         return rows
 
+# ------------- Utils -------------
+async def _send_long_markdown(chat_id: int, text: str, app: Application):
+    """Split long markdown messages safely within Telegram 4096 char limit."""
+    MAX = 3900  # leave headroom for code fences etc.
+    if len(text) <= MAX:
+        await app.bot.send_message(chat_id, text, parse_mode="Markdown")
+        return
+    chunks = math.ceil(len(text)/MAX)
+    for i in range(chunks):
+        part = text[i*MAX:(i+1)*MAX]
+        # wrap each chunk in code fences if it looks like JSON
+        if part.lstrip().startswith('{') or part.lstrip().startswith('['):
+            part = f"```{part}```"
+        await app.bot.send_message(chat_id, part, parse_mode="Markdown")
+
 # ------------- HTTP helpers -------------
 def _auth_headers() -> Dict[str, str]:
     if not API_KEY:
@@ -93,14 +114,56 @@ async def _post(url: str, *, form: Dict[str, Any] | None = None) -> Any:
             except Exception:
                 return {"status_code": r.status, "raw": text[:500]}
 
+# ------------- Parsing helpers -------------
+def _to_dict_like(res: Any) -> Optional[dict]:
+    if isinstance(res, list) and res:
+        return res[0] if isinstance(res[0], dict) else None
+    if isinstance(res, dict):
+        return res
+    return None
+
+def _extract_search_id(res: Any) -> Optional[str]:
+    """
+    API success example:
+    { "status": "SUCCESS", "result": { "search_id": "100" }, "message": "Task created" }
+    """
+    obj = _to_dict_like(res)
+    if not isinstance(obj, dict): return None
+    # try common keys first
+    for k in ("search_id", "id", "request_id", "ref"):
+        v = obj.get(k)
+        if v: return str(v)
+    # check nested "result" then "data"
+    for container in ("result", "data"):
+        sub = obj.get(container)
+        if isinstance(sub, dict):
+            for k in ("search_id", "id", "request_id", "ref"):
+                v = sub.get(k)
+                if v: return str(v)
+    return None
+
+def _status_from_result(res: Any) -> Optional[str]:
+    obj = _to_dict_like(res)
+    if not isinstance(obj, dict): return None
+    # top-level status
+    for k in ("status", "state", "result_status", "decision"):
+        v = obj.get(k)
+        if v: return str(v).upper()
+    # nested result/data
+    for container in ("result", "data"):
+        sub = obj.get(container)
+        if isinstance(sub, dict):
+            for k in ("status", "state", "result_status", "decision"):
+                v = sub.get(k)
+                if v: return str(v).upper()
+    return None
+
 # ------------- Commands -------------
 async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message: return
     try:
         res = await _post(BALANCE_URL)
-        item = res[0] if isinstance(res, list) and res else res
-        if not isinstance(item, dict):
-            raise RuntimeError(f"Unexpected response: {str(res)[:200]}")
+        item = _to_dict_like(res) or {}
         status = str(item.get("status", "")).upper()
         balance = item.get("balance")
         msg = item.get("message", "")
@@ -112,35 +175,40 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"Balance error: {type(e).__name__}: {e}")
 
-def _extract_search_id(res: Any) -> Optional[str]:
-    obj = res[0] if isinstance(res, list) and res else res if isinstance(res, dict) else None
-    if not isinstance(obj, dict): return None
-    for k in ("search_id", "id", "request_id", "ref"):
-        v = obj.get(k)
-        if v: return str(v)
-    data = obj.get("data")
-    if isinstance(data, dict):
-        for k in ("search_id", "id", "request_id", "ref"):
-            v = data.get(k)
-            if v: return str(v)
-    return None
+# NEW: /mybalance alias
+async def mybalance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return await balance_cmd(update, context)
 
-def _status_from_result(res: Any) -> Optional[str]:
-    obj = res[0] if isinstance(res, list) and res else res if isinstance(res, dict) else None
-    if not isinstance(obj, dict): return None
-    for k in ("status", "state", "result_status", "decision"):
-        v = obj.get(k)
-        if v: return str(v).upper()
-    data = obj.get("data")
-    if isinstance(data, dict):
-        for k in ("status", "state", "result_status", "decision"):
-            v = data.get(k)
-            if v: return str(v).upper()
-    return None
+async def bases_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List available bases + USD prices."""
+    if not update.message: return
+    try:
+        res = await _post(AVAILABLE_BASE_URL)
+        # API returns list of {id, name, price}
+        if isinstance(res, list) and res:
+            lines = ["📚 *Available Bases*"]
+            for item in res:
+                if not isinstance(item, dict): continue
+                bid = item.get("id", "—")
+                name = item.get("name", "—")
+                # docs say price in USD; some APIs send cents. If >= 1000 assume cents.
+                price = item.get("price")
+                try:
+                    p = float(price)
+                    p = p/100 if p >= 1000 else p
+                    price_str = f"${p:.2f}"
+                except:
+                    price_str = str(price)
+                lines.append(f"- `{bid}` — *{name}* — {price_str}")
+            await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        else:
+            await update.message.reply_text("No bases returned.")
+    except Exception as e:
+        await update.message.reply_text(f"Bases error: {type(e).__name__}: {e}")
 
 async def searchdata_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    /searchdata firstname=John lastname=Doe dob=01/02/1990 address="123 Main St" city=Detroit state=MI zip=48235
+    /searchdata search_type=22 firstname=John lastname=Doe dob=01/02/1990 address="123 Main St" city=Detroit state=MI zip=48235
     """
     m = update.message
     if not m: return
@@ -156,25 +224,23 @@ async def searchdata_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await m.reply_text(f"Parse error: {e}")
         return
 
-    form = {"search_type": 22}
-    required = ["firstname", "lastname", "dob", "address", "city", "state", "zip"]
+    form: Dict[str, Any] = {}
     for tok in tokens:
         if "=" in tok:
             k, v = tok.split("=", 1)
             form[k.strip()] = v.strip()
 
-    missing = [k for k in required if not form.get(k)]
-    if missing:
-        await m.reply_text(f"Missing required keys: {', '.join(missing)}")
-        return
+    # default search_type if not provided (you can change this)
+    form.setdefault("search_type", 22)
 
     try:
         res = await _post(SEARCHDATA_URL, form=form)
         search_id = _extract_search_id(res)
-        await m.reply_text(f"Submitted. search_id={search_id or 'N/A'}")
+        status = _status_from_result(res) or "UNKNOWN"
+        await m.reply_text(f"Submitted. status={status} search_id={search_id or 'N/A'}")
         if search_id:
             await db_add_pending(search_id, m.chat_id)
-            # schedule first poll
+            # schedule first poll (use ctx.job_queue, NOT job.run_once)
             context.job_queue.run_once(
                 poll_job,
                 when=POLL_INTERVALS[0],
@@ -195,10 +261,135 @@ async def checkresult_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         res = await _post(RESULT_URL, form=form)
         pretty = json.dumps(res, indent=2)
-        if len(pretty) > 3800: pretty = pretty[:3800] + "\n… (truncated)"
+        if len(pretty) > 3900: pretty = pretty[:3900] + "\n… (truncated)"
         await update.message.reply_text(f"```{pretty}```", parse_mode="Markdown")
     except Exception as e:
         await update.message.reply_text(f"Result error: {type(e).__name__}: {e}")
+
+# ------------- /lookup wizard helpers & handlers -------------
+def _format_bases(res: Any) -> str:
+    if not isinstance(res, list) or not res:
+        return "No bases returned."
+    lines = ["📚 *Available Bases*"]
+    for item in res:
+        if not isinstance(item, dict):
+            continue
+        bid = item.get("id", "—")
+        name = item.get("name", "—")
+        price = item.get("price", "—")
+        try:
+            p = float(price)
+            p = p/100 if p >= 1000 else p
+            price = f"${p:.2f}"
+        except:
+            price = str(price)
+        lines.append(f"- `{bid}` — *{name}* — {price}")
+    lines.append("\nReply with the *ID* of the base you want to use.")
+    return "\n".join(lines)
+
+async def _get_bases() -> List[Dict[str, Any]]:
+    res = await _post(AVAILABLE_BASE_URL)
+    return res if isinstance(res, list) else []
+
+async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return ConversationHandler.END
+    try:
+        bases = await _get_bases()
+        context.user_data["lookup"] = {"bases": bases}
+        await update.message.reply_text(_format_bases(bases), parse_mode="Markdown")
+        return LOOKUP_CHOOSE_BASE
+    except Exception as e:
+        await update.message.reply_text(f"Lookup start error: {type(e).__name__}: {e}")
+        return ConversationHandler.END
+
+async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return ConversationHandler.END
+    choice = (update.message.text or "").strip()
+    if not choice.isdigit():
+        await update.message.reply_text("Please send a numeric base *ID*.", parse_mode="Markdown")
+        return LOOKUP_CHOOSE_BASE
+
+    bases = context.user_data.get("lookup", {}).get("bases", [])
+    base_map = {str(b.get("id")): b for b in bases if isinstance(b, dict)}
+    base = base_map.get(choice)
+    if not base:
+        await update.message.reply_text("Invalid base ID. Send one from the list above.")
+        return LOOKUP_CHOOSE_BASE
+
+    context.user_data["lookup"]["base_id"] = int(choice)
+    context.user_data["lookup"]["base_name"] = base.get("name", "Unknown")
+
+    guide = (
+        f"Chosen base: *{base.get('name','Unknown')}* (ID {choice}).\n\n"
+        "Now send your parameters as `key=value` pairs separated by spaces.\n"
+        "Use quotes for multi-word values. Examples:\n"
+        "`firstname=John lastname=Doe dob=01/02/1990 zip=48235`\n"
+        "`address=\"123 Main St\" city=Detroit state=MI`\n\n"
+        "When ready, send your line. Send /cancel to abort."
+    )
+    await update.message.reply_text(guide, parse_mode="Markdown")
+    return LOOKUP_ENTER_PARAMS
+
+async def lookup_enter_params(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return ConversationHandler.END
+
+    text = (update.message.text or "").strip()
+    if not text:
+        await update.message.reply_text("Please send parameters or /cancel.")
+        return LOOKUP_ENTER_PARAMS
+
+    try:
+        tokens = shlex.split(text)
+    except Exception as e:
+        await update.message.reply_text(f"Parse error: {e}\nTry again or /cancel.")
+        return LOOKUP_ENTER_PARAMS
+
+    form: Dict[str, Any] = {}
+    for tok in tokens:
+        if "=" in tok:
+            k, v = tok.split("=", 1)
+            if k.strip():
+                form[k.strip()] = v.strip()
+
+    if not form:
+        await update.message.reply_text("No key=value pairs found. Try again or /cancel.")
+        return LOOKUP_ENTER_PARAMS
+
+    base_id = context.user_data.get("lookup", {}).get("base_id")
+    form.setdefault("search_type", base_id if base_id is not None else 22)
+
+    try:
+        res = await _post(SEARCHDATA_URL, form=form)
+        search_id = _extract_search_id(res)
+        status = _status_from_result(res) or "UNKNOWN"
+        pretty = json.dumps(res, indent=2)
+        msg = f"Submitted ✅\nstatus={status}\nsearch_id={search_id or 'N/A'}\n```{pretty[:1800]}```"
+        await update.message.reply_text(msg, parse_mode="Markdown")
+
+        if search_id:
+            await db_add_pending(search_id, update.effective_chat.id)
+            context.job_queue.run_once(
+                poll_job,
+                when=POLL_INTERVALS[0],
+                data={"chat_id": update.effective_chat.id, "search_id": search_id, "attempt": 0},
+                name=f"poll:{search_id}",
+            )
+        else:
+            await update.message.reply_text("ℹ️ No search_id found. Use /checkresult <id> manually.")
+    except Exception as e:
+        await update.message.reply_text(f"Search error: {type(e).__name__}: {e}")
+
+    context.user_data.pop("lookup", None)
+    return ConversationHandler.END
+
+async def lookup_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.pop("lookup", None)
+    if update.message:
+        await update.message.reply_text("Lookup cancelled.")
+    return ConversationHandler.END
 
 # ------------- Polling Job -------------
 async def poll_job(ctx: ContextTypes.DEFAULT_TYPE):
@@ -213,12 +404,14 @@ async def poll_job(ctx: ContextTypes.DEFAULT_TYPE):
         status = _status_from_result(res) or ""
         await db_mark_attempt(search_id, attempt, status)
 
-        if status not in PENDING_STATUSES and status:  # done
+        if status and status not in PENDING_STATUSES:  # done
             pretty = json.dumps(res, indent=2)
-            if len(pretty) > 3800: pretty = pretty[:3800] + "\n… (truncated)"
-            await ctx.application.bot.send_message(
-                chat_id, f"✅ Result ready for {search_id}:\n```{pretty}```", parse_mode="Markdown"
-            )
+            msg = f"✅ Result ready for {search_id}:\n```{pretty}```"
+            if len(msg) <= 3900:
+                await ctx.application.bot.send_message(chat_id, msg, parse_mode="Markdown")
+            else:
+                await ctx.application.bot.send_message(chat_id, "✅ Result ready (split):")
+                await _send_long_markdown(chat_id, pretty, ctx.application)
             await db_mark_done(search_id, status)
             job.schedule_removal()
             return
@@ -242,9 +435,10 @@ async def poll_job(ctx: ContextTypes.DEFAULT_TYPE):
         job.schedule_removal()
         return
 
-    job.data["attempt"] = attempt
+    # IMPORTANT: schedule via ctx.job_queue (not job.run_once)
     delay = POLL_INTERVALS[attempt]
-    job.run_once(poll_job, when=delay, data=job.data, name=job.name)
+    new_data = {"chat_id": chat_id, "search_id": search_id, "attempt": attempt}
+    ctx.job_queue.run_once(poll_job, when=delay, data=new_data, name=job.name)
 
 # ------------- Startup Resume -------------
 async def bender_resume_pending(app: Application):
@@ -263,8 +457,24 @@ async def bender_resume_pending(app: Application):
 # ------------- Registrar -------------
 def register_bender_handlers(app: Application):
     app.add_handler(CommandHandler("balance", balance_cmd))
+    app.add_handler(CommandHandler("mybalance", mybalance_cmd))  # alias
+    app.add_handler(CommandHandler("bases", bases_cmd))
     app.add_handler(CommandHandler("searchdata", searchdata_cmd))
     app.add_handler(CommandHandler("checkresult", checkresult_cmd))
+
+    # /lookup wizard
+    lookup_conv = ConversationHandler(
+        entry_points=[CommandHandler("lookup", lookup_start)],
+        states={
+            LOOKUP_CHOOSE_BASE: [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_choose_base)],
+            LOOKUP_ENTER_PARAMS: [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_enter_params)],
+        },
+        fallbacks=[CommandHandler("cancel", lookup_cancel)],
+        conversation_timeout=300,  # 5 minutes
+        name="lookup_wizard",
+        persistent=False,
+    )
+    app.add_handler(lookup_conv)
 
 async def bender_init(app: Application):
     """Call once on startup (before app.start) to init DB and resume pending jobs."""
