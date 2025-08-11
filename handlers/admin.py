@@ -63,7 +63,7 @@ async def handle_admin_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["awaiting_admin_password"] = False
             logged_in_admins.add(user_id)
 
-            ack = await update.message.reply_text("✅ Access granted.")
+            ack = await update.message.reply_text("✅ Access granted.", reply_markup=admin_keyboard) 
             store_message_id(context, chat_id, ack.message_id)
             try:
                 await update.message.delete()
@@ -73,7 +73,7 @@ async def handle_admin_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             panel_msg = await send_admin_panel(update, context)
             store_message_id(context, chat_id, panel_msg.message_id)
         else:
-            warn = await update.message.reply_text("❌ Incorrect password. Try again.")
+            warn = await update.message.reply_text("❌ Incorrect password. Try again.", reply_markup=admin_keyboard) 
             store_message_id(context, chat_id, warn.message_id)
             try:
                 await update.message.delete()
@@ -131,41 +131,41 @@ async def handle_admin_text_selection(update: Update, context: ContextTypes.DEFA
     text = (update.message.text or "").strip()
 
     if text == "📊 View Stats":
-        await update.message.reply_text("📊 Gathering stats... (coming soon)")
+        await update.message.reply_text("📊 Gathering stats... (coming soon)", reply_markup=admin_keyboard)
 
     elif text == "📤 Export Users":
         await admin_export_users(update, context)
 
     elif text == "📥 Import Users":
-        await update.message.reply_text("📥 Importing users... (coming soon)")
+        await update.message.reply_text("📥 Importing users... (coming soon)", reply_markup=admin_keyboard)
 
     elif text == "🧑‍💼 Assign Rank":
-        await update.message.reply_text("🧑‍💼 Use /assignrank <@username> <Rank>")
+        await update.message.reply_text("🧑‍💼 Use /assignrank <@username> <Rank>", reply_markup=admin_keyboard)
 
     elif text == "📨 Review Promotion Requests":
-        await update.message.reply_text("📨 Reviewing promotion requests... (coming soon)")
+        await update.message.reply_text("📨 Reviewing promotion requests... (coming soon)", reply_markup=admin_keyboard)
 
     elif text == "🧹 Reset Violations":
-        await update.message.reply_text("🧹 Resetting violations... (coming soon)")
+        await update.message.reply_text("🧹 Resetting violations... (coming soon)", reply_markup=admin_keyboard)
 
     elif text == "⛔ Mute User":
-        await update.message.reply_text("⛔ Muting users... (coming soon)")
+        await update.message.reply_text("⛔ Muting users... (coming soon)", reply_markup=admin_keyboard)
 
     elif text == "🔄 Reload Configs":
-        await update.message.reply_text("🔄 Reloading configs... (coming soon)")
+        await update.message.reply_text("🔄 Reloading configs... (coming soon)", reply_markup=admin_keyboard)
 
     elif text == "🚪 Logout":
         await logout_command(update, context)
 
     else:
-        await update.message.reply_text("❓ Not sure what you meant. Use the buttons or /admin.")
+        await update.message.reply_text("❓ Not sure what you meant. Use the buttons or /admin.", reply_markup=admin_keyboard)
 
 # --- Export to CSV in-memory ---
 async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = get_all_users()
 
     if not users:
-        await update.message.reply_text("⚠️ No users found to export.")
+        await update.message.reply_text("⚠️ No users found to export.", reply_markup=admin_keyboard)
         return
 
     # Write CSV in memory
@@ -182,7 +182,7 @@ async def admin_export_users(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_document(
         document=InputFile(bytes_buffer, filename="exported_users.csv"),
-        caption="📤 Exported user data.",
+        caption="📤 Exported user data.", reply_markup=admin_keyboard
     )
 
 # --- Logout Admin ---
