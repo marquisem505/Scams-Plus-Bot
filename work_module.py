@@ -3,7 +3,7 @@ import os, json, shlex, time, math
 from typing import Dict, Any, Optional, List, Tuple
 from aiohttp import ClientSession, ClientTimeout
 import aiosqlite
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, ContextTypes, Job
 from telegram.ext import ConversationHandler, MessageHandler, filters
 
@@ -23,36 +23,69 @@ PENDING_STATUSES = {"PENDING", "IN_PROGRESS", "PROCESSING", "QUEUED", "RUNNING",
 POLL_INTERVALS = [5, 10, 20, 30, 60, 120]  # seconds, exponential-ish backoff
 
 # NEW: states for /lookup wizard
-LOOKUP_CHOOSE_BASE, LOOKUP_ENTER_PARAMS = range(2)
+LOOKUP_CHOOSE_CAT, LOOKUP_CHOOSE_BASE, LOOKUP_ENTER_PARAMS = range(3)
 
-# --- Scam's Plus Brand Styling ---
-SP_HEADER = "🔥 Scam’s Plus Lookups"
-SP_SUB    = "_Choose your lookup. Prices update live._"
+# ========= Scam's Plus Categorized Lookups (Display-Only) =========
+# Exact labels you gave (no IDs shown to users)
+SP_CATEGORY_ORDER = [
+    "Person Lookup",
+    "Reverse lookups",
+    "Credit Reports + Scores",
+    "Professional Lookups",
+]
 
-# Base ID → (emoji, display name)
-SP_BASE_COPY = {
-    1:  ("💳", "SSN + DOB (ZIP)"),
-    23: ("💳", "SSN + DOB (Nationwide)"),
-    2:  ("📍", "SSN (ZIP)"),
-    3:  ("🏙️", "SSN (City)"),
-    4:  ("🗺️", "SSN (State)"),
-    22: ("🪪", "Driver License"),
-    100:("📄", "Credit Report (TU)"),
-    102:("📄", "Credit Report (WalletHub)"),
-    104:("👩‍👦", "Mother’s Maiden Name"),
-    20: ("📊", "Consumer Snapshot"),
-    10: ("💊", "DEA License"),
-    11: ("🚗", "Advanced DL"),
-    14: ("🎓", "Pro License"),
-    15: ("🏢", "Business Profile"),
-    16: ("🔍", "Reverse SSN"),
-    29: ("🕵️", "Background + DOB"),
-    24: ("📞", "Reverse Phone"),
-    25: ("📧", "Reverse Email"),
-    26: ("☎️", "Reverse Phone (Alt)"),
-    27: ("🏠", "Reverse Address"),
-    28: ("✏️", "Address Autocomplete"),
-    61: ("❓", "Email Reputation"),
+# Base ID → display label (exact casing you provided)
+SP_LABELS = {
+    1:   "Ssn/dob by zip",
+    23:  "Ssn/dob",
+    2:   "Ssn by zip",
+    3:   "Ssn by city",
+    4:   "Ssn by state",
+    104: "Mmn",
+    22:  "DL lookup",
+    11:  "Advanced DL lookup",
+    29:  "BG + DOB",
+    24:  "Phone number lookup",
+    26:  "Alternate Phone number lookup",
+    25:  "Email lookup",
+    27:  "Address lookup",
+    16:  "Ssn lookup",
+    100: "CR (TU)",
+    102: "CR (WH)",
+    20:  "CS",
+    15:  "Business Info Lookup",
+    14:  "Professional License Lookup",
+    10:  "DEA # Lookup",
+}
+
+# Category → base IDs (order matters)
+SP_CATEGORY_TO_BASEIDS = {
+    "Person Lookup": [
+        1, 23, 2, 3, 4, 104, 22, 11, 29
+    ],
+    "Reverse lookups": [
+        24, 26, 25, 27, 16
+    ],
+    "Credit Reports + Scores": [
+        100, 102, 20
+    ],
+    "Professional Lookups": [
+        15, 14, 10
+    ],
+}
+
+# Optional: your house-style emojis per base
+SP_EMOJI = {
+    1:  "💳", 23: "💳",
+    2:  "📍", 3:  "🏙️", 4:  "🗺️",
+    104:"👩‍👦",
+    22: "🪪", 11: "🚗",
+
+    24: "📞", 26: "☎️", 25: "📧", 27: "🏠", 16: "🔍", 29: "🕵️",
+
+    100:"📄", 102:"📄", 20: "📊",
+
+    15: "🏢", 14: "🎓", 10: "💊",
 }
 
 def _price_str(v) -> str:
@@ -65,9 +98,10 @@ def _price_str(v) -> str:
         return str(v)
 
 def _sp_line(item: dict) -> str:
-    """Return emoji + lookup type + price, no ID."""
+    """emoji + lookup type + price (no ID shown) for /bases output."""
     bid = int(item.get("id", 0))
-    emoji, label = SP_BASE_COPY.get(bid, ("🛠️", item.get("name", "")))
+    label = SP_LABELS.get(bid, item.get("name", "Lookup"))
+    emoji = SP_EMOJI.get(bid, "🛠️")
     return f"{emoji} {label} — {_price_str(item.get('price', '—'))}"
 
 # ------------- DB -------------
@@ -121,6 +155,50 @@ async def db_get_pending() -> List[Tuple[str, int, int, int]]:
         rows = await cur.fetchall()
         await cur.close()
         return rows
+    
+# --- Keyboard Helpers ---
+SP_HEADER = "🔥 Scam’s Plus Lookups"
+SP_SUB    = "_Choose your lookup. Prices update live._"
+
+BACK_BTN   = "⬅️ Back"
+CANCEL_BTN = "✖️ Cancel"
+
+def _category_keyboard() -> ReplyKeyboardMarkup:
+    rows = [SP_CATEGORY_ORDER[i:i+2] for i in range(0, len(SP_CATEGORY_ORDER), 2)]
+    rows.append([CANCEL_BTN])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False)
+
+def _button_text_for(bid: int, price_val) -> str:
+    label = SP_LABELS.get(bid, "Lookup")
+    emoji = SP_EMOJI.get(bid, "🛠️")
+    try:
+        p = float(price_val)
+        if p >= 1000: p /= 100.0
+        price = f"${p:.2f}"
+    except Exception:
+        price = str(price_val)
+    return f"{emoji} {label} — {price}"
+
+def _lookup_keyboard_for_category(cat: str, bases: List[Dict[str, Any]]) -> Tuple[ReplyKeyboardMarkup, Dict[str, int]]:
+    ids = SP_CATEGORY_TO_BASEIDS.get(cat, [])
+    # map id -> price from live API
+    id_to_price = {}
+    for it in bases:
+        if isinstance(it, dict):
+            try:
+                id_to_price[int(it.get("id", 0))] = it.get("price", "—")
+            except Exception:
+                pass
+
+    buttons, text_to_id = [], {}
+    for bid in ids:
+        text = _button_text_for(bid, id_to_price.get(bid, "—"))
+        buttons.append(text)
+        text_to_id[text] = bid
+
+    rows = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
+    rows.append([BACK_BTN, CANCEL_BTN])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False), text_to_id
 
 # ------------- Utils -------------
 async def _send_long_markdown(chat_id: int, text: str, app: Application):
@@ -300,59 +378,63 @@ async def checkresult_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Result error: {type(e).__name__}: {e}")
 
 # ------------- /lookup wizard helpers & handlers -------------
-def _format_bases(res: Any) -> str:
-    if not isinstance(res, list) or not res:
-        return f"{SP_HEADER}\nNo lookups available."
-    lines = [SP_HEADER, SP_SUB, ""]
-    for item in res:
-        if isinstance(item, dict):
-            lines.append(_sp_line(item))
-    lines.append("\nReply with the *lookup type* exactly as shown above.")
-    return "\n".join(lines)
-
-async def _get_bases() -> List[Dict[str, Any]]:
-    res = await _post(AVAILABLE_BASE_URL)
-    return res if isinstance(res, list) else []
 
 async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return ConversationHandler.END
-    try:
-        bases = await _get_bases()
-        context.user_data["lookup"] = {"bases": bases}
-        await update.message.reply_text(_format_bases(bases), parse_mode="Markdown")
-        return LOOKUP_CHOOSE_BASE
-    except Exception as e:
-        await update.message.reply_text(f"Lookup start error: {type(e).__name__}: {e}")
+    bases = await _get_bases()
+    if not isinstance(bases, list) or not bases:
+        await update.message.reply_text(f"{SP_HEADER}\nNo lookups available.")
         return ConversationHandler.END
+    context.user_data["lookup"] = {"bases": bases}
+    await update.message.reply_text(
+        f"{SP_HEADER}\n{SP_SUB}\n\nPick a category:",
+        reply_markup=_category_keyboard(),
+        parse_mode="Markdown",
+    )
+    return LOOKUP_CHOOSE_CAT
+
+async def lookup_choose_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return ConversationHandler.END
+    choice = (update.message.text or "").strip()
+    if choice == CANCEL_BTN:
+        await update.message.reply_text("Lookup cancelled.", reply_markup=ReplyKeyboardRemove())
+        context.user_data.pop("lookup", None)
+        return ConversationHandler.END
+    if choice not in SP_CATEGORY_TO_BASEIDS:
+        await update.message.reply_text("Pick a category from the keyboard.")
+        return LOOKUP_CHOOSE_CAT
+
+    bases = context.user_data.get("lookup", {}).get("bases", [])
+    kb, text_to_id = _lookup_keyboard_for_category(choice, bases)
+    context.user_data["lookup"]["cat"] = choice
+    context.user_data["lookup"]["text_to_id"] = text_to_id
+    await update.message.reply_text(f"{choice}\nSelect a lookup:", reply_markup=kb)
+    return LOOKUP_CHOOSE_BASE
 
 async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return ConversationHandler.END
+    chosen = (update.message.text or "").strip()
 
-    # user types the lookup TYPE (name), not an ID
-    choice_lower = (update.message.text or "").strip().lower()
-    bases = context.user_data.get("lookup", {}).get("bases", [])
-    base = None
-    for b in bases:
-        if not isinstance(b, dict):
-            continue
-        bid = int(b.get("id"))
-        _emoji, label = SP_BASE_COPY.get(bid, ("", b.get("name", "")))
-        if label and choice_lower == label.lower():
-            base = b
-            break
+    if chosen == CANCEL_BTN:
+        await update.message.reply_text("Lookup cancelled.", reply_markup=ReplyKeyboardRemove())
+        context.user_data.pop("lookup", None)
+        return ConversationHandler.END
+    if chosen == BACK_BTN:
+        await update.message.reply_text("Pick a category:", reply_markup=_category_keyboard())
+        return LOOKUP_CHOOSE_CAT
 
-    if not base:
-        await update.message.reply_text(
-            "Not found. Reply with the *lookup type* exactly as shown above.",
-            parse_mode="Markdown"
-        )
+    lkp = context.user_data.get("lookup", {})
+    text_to_id = lkp.get("text_to_id", {})
+    bid = text_to_id.get(chosen)
+    if not bid:
+        await update.message.reply_text("Use the keyboard to choose a lookup, or tap Back.")
         return LOOKUP_CHOOSE_BASE
 
-    # store internal id + display name (no IDs shown to user)
-    bid = int(base.get("id"))
-    _emoji, label = SP_BASE_COPY.get(bid, ("", base.get("name", "Unknown")))
+    # persist internal id + pretty label (never show ID)
+    label = SP_LABELS.get(bid, chosen)
     context.user_data["lookup"]["base_id"] = bid
     context.user_data["lookup"]["base_name"] = label
 
@@ -364,7 +446,7 @@ async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "`address=\"123 Main St\" city=Detroit state=MI`\n\n"
         "When ready, send your line. Send /cancel to abort."
     )
-    await update.message.reply_text(guide, parse_mode="Markdown")
+    await update.message.reply_text(guide, parse_mode="Markdown", reply_markup=ReplyKeyboardRemove())
     return LOOKUP_ENTER_PARAMS
 
 async def lookup_enter_params(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -423,7 +505,7 @@ async def lookup_enter_params(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def lookup_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("lookup", None)
     if update.message:
-        await update.message.reply_text("Lookup cancelled.")
+        await update.message.reply_text("Lookup cancelled.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 # ------------- Polling Job -------------
@@ -501,11 +583,12 @@ def register_bender_handlers(app: Application):
     lookup_conv = ConversationHandler(
         entry_points=[CommandHandler("lookup", lookup_start)],
         states={
+            LOOKUP_CHOOSE_CAT:  [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_choose_cat)],
             LOOKUP_CHOOSE_BASE: [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_choose_base)],
-            LOOKUP_ENTER_PARAMS: [MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_enter_params)],
+            LOOKUP_ENTER_PARAMS:[MessageHandler(filters.TEXT & ~filters.COMMAND, lookup_enter_params)],
         },
         fallbacks=[CommandHandler("cancel", lookup_cancel)],
-        conversation_timeout=300,  # 5 minutes
+        conversation_timeout=300,
         name="lookup_wizard",
         persistent=False,
     )
