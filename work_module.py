@@ -227,16 +227,26 @@ def _auth_headers() -> Dict[str, str]:
     }
 
 async def _post(url: str, *, form: Dict[str, Any] | None = None) -> Any:
+    if _http_session is None:
+        await bender_http_start()
     headers = _auth_headers()
     if form is not None:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
-    async with ClientSession(timeout=_TIMEOUT) as s:
-        async with s.post(url, headers=headers, data=form) as r:
-            text = await r.text()
-            try:
-                return await r.json(content_type=None)
-            except Exception:
-                return {"status_code": r.status, "raw": text[:500]}
+    # transient retry: 3 attempts with small backoff
+    last_exc = None
+    for attempt in range(3):
+        try:
+            async with _http_session.post(url, headers=headers, data=form) as r:
+                text = await r.text()
+                try:
+                    return await r.json(content_type=None)
+                except Exception:
+                    return {"status_code": r.status, "raw": text[:500]}
+        except Exception as e:
+            last_exc = e
+            await asyncio.sleep(0.5 * (attempt + 1))
+    # out of retries
+    raise last_exc
 
 # ------------- Parsing helpers -------------
 def _to_dict_like(res: Any) -> Optional[dict]:
@@ -577,8 +587,31 @@ async def bender_resume_pending(app: Application):
             name=f"poll:{search_id}",
         )
 
+async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rows = await db_get_pending()
+    if not rows:
+        await update.message.reply_text("No pending jobs.")
+        return
+    now = int(time.time())
+    lines = ["⏳ Pending jobs:"]
+    for sid, chat_id, attempt, created in rows:
+        age = now - created
+        lines.append(f"- `{sid}` • attempts={attempt} • age={age}s")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+async def purge_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    days = int(context.args[0]) if context.args else 2
+    cutoff = int(time.time()) - days*86400
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM pending_jobs WHERE done=1 OR created_at<?", (cutoff,))
+        c = db.total_changes
+        await db.commit()
+    await update.message.reply_text(f"🧹 Purged {c} rows (cutoff {days}d).")
+
 # ------------- Registrar -------------
 def register_bender_handlers(app: Application):
+    app.add_handler(CommandHandler("pending", pending_cmd))
+    app.add_handler(CommandHandler("purge", purge_cmd))
     app.add_handler(CommandHandler("balance", balance_cmd))
     app.add_handler(CommandHandler("mybalance", mybalance_cmd))  # alias
     app.add_handler(CommandHandler("bases", bases_cmd))
