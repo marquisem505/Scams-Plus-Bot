@@ -1,5 +1,5 @@
 # bender_module.py — persistent auto-polling for Bender API (PTB v21+)
-import os, json, shlex, time, math
+import os, json, shlex, time, math, asyncio
 from typing import Dict, Any, Optional, List, Tuple
 from aiohttp import ClientSession, ClientTimeout
 import aiosqlite
@@ -18,6 +18,20 @@ RESULT_URL        = os.getenv("RESULT_URL", "https://bender-search.ru/apiv1/resu
 DB_PATH = os.getenv("BENDER_DB", "bender_jobs.db")
 
 _TIMEOUT = ClientTimeout(total=API_TIMEOUT)
+
+# Shared HTTP session (prevents too many sockets)
+_http_session: ClientSession | None = None
+
+async def bender_http_start():
+    global _http_session
+    if _http_session is None or _http_session.closed:
+        _http_session = ClientSession(timeout=_TIMEOUT)
+
+async def bender_http_close():
+    global _http_session
+    if _http_session and not _http_session.closed:
+        await _http_session.close()
+        _http_session = None
 
 PENDING_STATUSES = {"PENDING", "IN_PROGRESS", "PROCESSING", "QUEUED", "RUNNING", "WAITING"}
 POLL_INTERVALS = [5, 10, 20, 30, 60, 120]  # seconds, exponential-ish backoff
@@ -165,10 +179,23 @@ SP_SUB    = "_Choose your lookup. Prices update live._"
 BACK_BTN   = "⬅️ Back"
 CANCEL_BTN = "✖️ Cancel"
 
-def _category_keyboard() -> ReplyKeyboardMarkup:
-    rows = [SP_CATEGORY_ORDER[i:i+2] for i in range(0, len(SP_CATEGORY_ORDER), 2)]
-    rows.append([CANCEL_BTN])
-    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=False, is_persistent=True)
+
+# --- New: Main Lookup Menu Keyboard ---
+def get_lookup_menu():
+    keyboard = [
+        ["🔍 Person Lookup", "📞 Reverse Lookup"],
+        ["📊 Credit & Scores", "🏢 Professional Lookup"],
+        ["💰 Balance", "📄 Profile"],
+        ["🛠 Support", "🏠 Home"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False, is_persistent=True)
+
+# --- New: Show Lookup Menu Handler ---
+async def show_lookup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Select a lookup category:",
+        reply_markup=get_lookup_menu()
+    )
 
 def _button_text_for(bid: int, price_val) -> str:
     label = SP_LABELS.get(bid, "Lookup")
@@ -313,6 +340,40 @@ async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mybalance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await balance_cmd(update, context)
 
+# --- Add Funds, Profile, Support commands (BTC deposits not configured yet) ---
+async def addfunds_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # BTC deposits not configured yet — provide manual instructions
+    msg = (
+        "💰 *Add Funds (BTC)*\n"
+        "Deposits are not configured in this bot yet.\n\n"
+        "For now:\n"
+        "1) Contact support via *🛠 Support*.\n"
+        "2) Send your User ID and desired amount.\n"
+        "3) Admin will credit your balance manually.\n\n"
+        "Tip: You can check provider balance with /balance."
+    )
+    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_lookup_menu())
+
+async def profile_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    # We don't have per-user wallet yet; show a minimal profile
+    msg = (
+        "👤 *Profile*\n"
+        f"User ID: `{uid}`\n"
+        "Balance: (member wallet not set up)\n"
+        "Searches: (history coming soon)\n"
+    )
+    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_lookup_menu())
+
+async def support_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = (
+        "🛠 *Support*\n"
+        "Need help or manual top-up?\n"
+        "• DM an admin with your *User ID* and details.\n"
+        "• Or reply here and we’ll reach out.\n"
+    )
+    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_lookup_menu())
+
 async def bases_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
@@ -398,35 +459,50 @@ async def _get_bases() -> List[Dict[str, Any]]:
 async def lookup_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return ConversationHandler.END
-    bases = await _get_bases()
-    if not isinstance(bases, list) or not bases:
-        await update.message.reply_text(f"{SP_HEADER}\nNo lookups available.")
-        return ConversationHandler.END
-    context.user_data["lookup"] = {"bases": bases}
-    await update.message.reply_text(
-        f"{SP_HEADER}\n{SP_SUB}\n\nPick a category:",
-        reply_markup=_category_keyboard(),
-        parse_mode="Markdown",
-    )
+    # Show the new lookup menu with categories
+    await show_lookup_menu(update, context)
     return LOOKUP_CHOOSE_CAT
 
 async def lookup_choose_cat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return ConversationHandler.END
     choice = (update.message.text or "").strip()
-    if choice == CANCEL_BTN:
-        await update.message.reply_text("Lookup cancelled.", reply_markup=ReplyKeyboardRemove())
-        context.user_data.pop("lookup", None)
+    # Handle Home button
+    if choice == "🏠 Home":
+        await update.message.reply_text("Returning to the main menu...", reply_markup=ReplyKeyboardRemove())
+        # Placeholder: you can call your main menu function here if available
         return ConversationHandler.END
-    if choice not in SP_CATEGORY_TO_BASEIDS:
-        await update.message.reply_text("Pick a category from the keyboard.")
+    # Updated: Route to real handlers for menu options
+    if choice == "💰 Balance":
+        # Show vendor balance command for now + instructions to add funds
+        await addfunds_cmd(update, context)
         return LOOKUP_CHOOSE_CAT
-
+    if choice == "📄 Profile":
+        await profile_cmd(update, context)
+        return LOOKUP_CHOOSE_CAT
+    if choice == "🛠 Support":
+        await support_cmd(update, context)
+        return LOOKUP_CHOOSE_CAT
+    # Map new emojis to old categories
+    cat_map = {
+        "🔍 Person Lookup": "Person Lookup",
+        "📞 Reverse Lookup": "Reverse lookups",
+        "📊 Credit & Scores": "Credit Reports + Scores",
+        "🏢 Professional Lookup": "Professional Lookups"
+    }
+    mapped_choice = cat_map.get(choice, None)
+    if mapped_choice is None:
+        await update.message.reply_text("Pick a lookup category from the keyboard.", reply_markup=get_lookup_menu())
+        return LOOKUP_CHOOSE_CAT
+    # Get bases if not already in user_data
+    if "lookup" not in context.user_data or "bases" not in context.user_data["lookup"]:
+        bases = await _get_bases()
+        context.user_data["lookup"] = {"bases": bases}
     bases = context.user_data.get("lookup", {}).get("bases", [])
-    kb, text_to_id = _lookup_keyboard_for_category(choice, bases)
-    context.user_data["lookup"]["cat"] = choice
+    kb, text_to_id = _lookup_keyboard_for_category(mapped_choice, bases)
+    context.user_data["lookup"]["cat"] = mapped_choice
     context.user_data["lookup"]["text_to_id"] = text_to_id
-    await update.message.reply_text(f"{choice}\nSelect a lookup:", reply_markup=kb)
+    await update.message.reply_text(f"{mapped_choice}\nSelect a lookup:", reply_markup=kb)
     return LOOKUP_CHOOSE_BASE
 
 async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -439,7 +515,7 @@ async def lookup_choose_base(update: Update, context: ContextTypes.DEFAULT_TYPE)
         context.user_data.pop("lookup", None)
         return ConversationHandler.END
     if chosen == BACK_BTN:
-        await update.message.reply_text("Pick a category:", reply_markup=_category_keyboard())
+        await show_lookup_menu(update, context)
         return LOOKUP_CHOOSE_CAT
 
     lkp = context.user_data.get("lookup", {})
@@ -516,7 +592,9 @@ async def lookup_enter_params(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text(f"Search error: {type(e).__name__}: {e}")
 
     context.user_data.pop("lookup", None)
-    return ConversationHandler.END
+    # After lookup, return to main lookup menu
+    await show_lookup_menu(update, context)
+    return LOOKUP_CHOOSE_CAT
 
 async def lookup_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("lookup", None)
@@ -617,6 +695,11 @@ def register_bender_handlers(app: Application):
     app.add_handler(CommandHandler("bases", bases_cmd))
     app.add_handler(CommandHandler("searchdata", searchdata_cmd))
     app.add_handler(CommandHandler("checkresult", checkresult_cmd))
+
+    # Add new command handlers for addfunds, profile, support
+    app.add_handler(CommandHandler("addfunds", addfunds_cmd))
+    app.add_handler(CommandHandler("profile", profile_cmd))
+    app.add_handler(CommandHandler("support", support_cmd))
 
     # /lookup wizard
     lookup_conv = ConversationHandler(
